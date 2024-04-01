@@ -1,0 +1,9 @@
+Import('env')
+
+libs = [ "pthread", "protobuf", "rt", "cryptopp" ]
+
+env.Default([
+    env.Program("my_test",
+                ["my_test.cc", "#build/liblogcabin.a"],
+                LIBS = libs),
+])

@@ -238,6 +238,8 @@ SConscript('Server/SConscript', variant_dir='build/Server')
 SConscript('Examples/SConscript', variant_dir='build/Examples')
 SConscript('test/SConscript', variant_dir='build/test')
 
+SConscript('MyTestCode/SConscript', variant_dir='build/MyTestCode')
+
 # This function is taken from http://www.scons.org/wiki/PhonyTargets
 def PhonyTargets(env = None, **kw):
     if not env: env = DefaultEnvironment()
