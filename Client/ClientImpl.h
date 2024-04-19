@@ -135,14 +135,16 @@ class ClientImpl {
                  const std::string& workingDirectory,
                  const std::string& contents,
                  const Condition& condition,
-                 TimePoint timeout);
+                 TimePoint timeout,
+                 uint8_t is_flair);
 
     /// See Tree::read.
     Result read(const std::string& path,
                 const std::string& workingDirectory,
                 const Condition& condition,
                 TimePoint timeout,
-                std::string& contents);
+                std::string& contents,
+                uint8_t is_flair);
 
     /// See Tree::removeFile.
     Result removeFile(const std::string& path,

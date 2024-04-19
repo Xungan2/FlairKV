@@ -416,7 +416,7 @@ Tree::removeDirectoryEx(const std::string& path)
 }
 
 Result
-Tree::write(const std::string& path, const std::string& contents)
+Tree::write(const std::string& path, const std::string& contents, uint8_t is_flair)
 {
     std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();
     return treeDetails->clientImpl->write(
@@ -424,17 +424,18 @@ Tree::write(const std::string& path, const std::string& contents)
         treeDetails->workingDirectory,
         contents,
         treeDetails->condition,
-        ClientImpl::absTimeout(treeDetails->timeoutNanos));
+        ClientImpl::absTimeout(treeDetails->timeoutNanos),
+        is_flair);
 }
 
 void
-Tree::writeEx(const std::string& path, const std::string& contents)
+Tree::writeEx(const std::string& path, const std::string& contents, uint8_t is_flair)
 {
-    throwException(write(path, contents), treeDetails->timeoutNanos);
+    throwException(write(path, contents, is_flair), treeDetails->timeoutNanos);
 }
 
 Result
-Tree::read(const std::string& path, std::string& contents) const
+Tree::read(const std::string& path, std::string& contents, uint8_t is_flair) const
 {
     std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();
     return treeDetails->clientImpl->read(
@@ -442,14 +443,15 @@ Tree::read(const std::string& path, std::string& contents) const
         treeDetails->workingDirectory,
         treeDetails->condition,
         ClientImpl::absTimeout(treeDetails->timeoutNanos),
-        contents);
+        contents,
+        is_flair);
 }
 
 std::string
-Tree::readEx(const std::string& path) const
+Tree::readEx(const std::string& path, uint8_t is_flair) const
 {
     std::string contents;
-    throwException(read(path, contents), treeDetails->timeoutNanos);
+    throwException(read(path, contents, is_flair), treeDetails->timeoutNanos);
     return contents;
 }
 

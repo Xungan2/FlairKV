@@ -13,9 +13,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <memory>
+
 #include "Core/Buffer.h"
+#include "Protocol/FlairProtocol.h"
 
 namespace LogCabin {
+
+using LogCabin::Protocol::FlairProtocol::FlairProtocol;
+
 namespace Core {
 
 Buffer::Buffer()
@@ -80,6 +86,34 @@ Buffer::reset()
     data = NULL;
     length = 0;
     deleter = NULL;
+}
+
+void
+Buffer::removeFlair()
+{
+    if (length < sizeof(FlairProtocol))
+        return;
+
+    char* data_new = new char[length - sizeof(FlairProtocol)];
+    memcpy(data_new, data, length - sizeof(FlairProtocol));
+
+    if (deleter != NULL)
+        (*deleter)(data);
+    data = data_new;
+    length -= sizeof(FlairProtocol);
+}
+
+void
+Buffer::setFlair(FlairProtocol& flair_hdr)
+{
+    char* data_new = new char[length + sizeof(FlairProtocol)];
+    memcpy(data_new, &flair_hdr, sizeof(FlairProtocol));
+    memcpy(data_new + sizeof(FlairProtocol), data, length);
+
+    if (deleter != NULL)
+        (*deleter)(data);
+    data = data_new;
+    length += sizeof(FlairProtocol);
 }
 
 } // namespace LogCabin::Core

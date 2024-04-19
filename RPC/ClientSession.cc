@@ -80,7 +80,8 @@ ClientSession::MessageSocketHandler::MessageSocketHandler(
 void
 ClientSession::MessageSocketHandler::handleReceivedMessage(
         MessageId messageId,
-        Core::Buffer message)
+        Core::Buffer message,
+        uint8_t is_flair)
 {
     std::lock_guard<std::mutex> mutexGuard(session.mutex);
 
@@ -340,10 +341,10 @@ ClientSession::makeSession(Event::Loop& eventLoop,
 {
     std::shared_ptr<ClientSession> session(
         new ClientSession(eventLoop,
-                          address,
-                          maxMessageLength,
-                          timeout,
-                          config));
+                        address,
+                        maxMessageLength,
+                        timeout,
+                        config));
     session->self = session;
     return session;
 }

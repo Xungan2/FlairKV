@@ -141,6 +141,8 @@ enum class Status : uint8_t {
      */
     INVALID_REQUEST = 4,
 
+    FLAIR_STALE_WRITE = 5,
+
 };
 
 /// Output a Status to a stream. Improves gtest error messages.

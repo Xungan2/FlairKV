@@ -20,10 +20,15 @@
 #include "RPC/Protocol.h"
 #include "RPC/OpaqueServerRPC.h"
 
+#include "Protocol/FlairProtocol.h"
+
 #ifndef LOGCABIN_RPC_SERVERRPC_H
 #define LOGCABIN_RPC_SERVERRPC_H
 
 namespace LogCabin {
+
+using LogCabin::Protocol::FlairProtocol::FlairProtocol;
+
 namespace RPC {
 
 /**
@@ -152,6 +157,10 @@ class ServerRPC {
      */
     void closeSession();
 
+    void isFlair() const;
+
+    FlairProtocol flair_hdr;
+
   private:
     /**
      * Reject the RPC.
@@ -184,6 +193,9 @@ class ServerRPC {
     // ServerRPC is non-copyable.
     ServerRPC(const ServerRPC&) = delete;
     ServerRPC& operator=(const ServerRPC&) = delete;
+
+    void handleStaleRPC();
+    void setFlairHeader();
 
 }; // class ServerRPC
 

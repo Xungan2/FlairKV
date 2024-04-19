@@ -16,6 +16,8 @@
 
 #include <deque>
 #include <vector>
+#include <sys/types.h>
+#include <sys/socket.h>
 
 #include "Core/Buffer.h"
 #include "Core/Mutex.h"
@@ -81,7 +83,8 @@ class MessageSocket {
          *      The data received.
          */
         virtual void handleReceivedMessage(MessageId messageId,
-                                           Core::Buffer contents) = 0;
+                                           Core::Buffer contents,
+                                           uint8_t is_flair) = 0;
 
         /**
          * This method is overridden by a subclass and invoked when the socket
@@ -117,6 +120,12 @@ class MessageSocket {
                   int fd,
                   uint32_t maxMessageLength);
 
+    // MessageSocket(Handler& handler,
+    //               Event::Loop& eventLoop,
+    //               int fd,
+    //               uint32_t maxMessageLength,
+    //               uint8_t is_udp);
+
     /**
      * Destructor.
      */
@@ -139,6 +148,10 @@ class MessageSocket {
      *      argument given to the constructor.
      */
     void sendMessage(MessageId messageId, Core::Buffer contents);
+
+    void sendMessage(MessageId messageId, Core::Buffer contents, uint8_t is_flair);
+
+    uint8_t is_udp;
 
   private:
 
@@ -188,6 +201,8 @@ class MessageSocket {
          * transferred on the network) from host order.
          */
         void toBigEndian();
+
+        uint8_t is_flair;
 
         /**
          * The value 0xdaf4 encoded in big endian.
@@ -285,6 +300,9 @@ class MessageSocket {
      */
     ssize_t read(void* buf, size_t maxBytes);
 
+    // void readable_udp();
+    // ssize_t read_udp(void* buf, size_t maxBytes, int flags, sockaddr* addr, socklen_t* addr_len);
+
     /**
      * Called when the socket may be written to without blocking.
      */
@@ -354,6 +372,9 @@ class MessageSocket {
     // MessageSocket is non-copyable.
     MessageSocket(const MessageSocket&) = delete;
     MessageSocket& operator=(const MessageSocket&) = delete;
+
+    sockaddr udp_addr;
+    socklen_t udp_addr_len;
 
 }; // class MessageSocket
 

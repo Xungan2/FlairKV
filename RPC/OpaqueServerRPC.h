@@ -46,7 +46,8 @@ class OpaqueServerRPC {
     OpaqueServerRPC(
             std::weak_ptr<OpaqueServer::SocketWithHandler> socket,
             MessageSocket::MessageId messageId,
-            Core::Buffer request);
+            Core::Buffer request,
+            uint8_t is_flair);
 
   public:
     /**
@@ -94,6 +95,8 @@ class OpaqueServerRPC {
      * The reply to the RPC, to send back to the client.
      */
     Core::Buffer response;
+
+    uint8_t is_flair;
 
   private:
     /**

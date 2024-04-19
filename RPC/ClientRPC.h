@@ -66,7 +66,9 @@ class ClientRPC {
               uint16_t service,
               uint8_t serviceSpecificErrorVersion,
               uint16_t opCode,
-              const google::protobuf::Message& request);
+              const google::protobuf::Message& request,
+              std::string& realPath,
+              uint8_t is_flair);
 
     /**
      * Default constructor. This doesn't create a valid RPC, but it is useful
@@ -197,6 +199,8 @@ class ClientRPC {
     // ClientRPC is non-copyable.
     ClientRPC(const ClientRPC&) = delete;
     ClientRPC& operator=(const ClientRPC&) = delete;
+
+    uint8_t is_flair;
 
 }; // class ClientRPC
 

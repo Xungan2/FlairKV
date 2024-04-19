@@ -14,6 +14,7 @@
  */
 
 #include "RPC/OpaqueServerRPC.h"
+#include "Protocol/FlairProtocol.h"
 
 namespace LogCabin {
 namespace RPC {
@@ -24,18 +25,21 @@ OpaqueServerRPC::OpaqueServerRPC()
     , socket()
     , messageId(~0UL)
     , responseTarget(NULL)
+    , is_flair(0)
 {
 }
 
 OpaqueServerRPC::OpaqueServerRPC(
         std::weak_ptr<OpaqueServer::SocketWithHandler> socket,
         MessageSocket::MessageId messageId,
-        Core::Buffer request)
+        Core::Buffer request,
+        uint8_t is_flair=0)
     : request(std::move(request))
     , response()
     , socket(socket)
     , messageId(messageId)
     , responseTarget(NULL)
+    , is_flair(is_flair)
 {
 }
 
@@ -45,6 +49,7 @@ OpaqueServerRPC::OpaqueServerRPC(OpaqueServerRPC&& other)
     , socket(std::move(other.socket))
     , messageId(std::move(other.messageId))
     , responseTarget(std::move(other.responseTarget))
+    , is_flair(std::move(other.is_flair))
 {
 }
 
@@ -60,6 +65,7 @@ OpaqueServerRPC::operator=(OpaqueServerRPC&& other)
     socket = std::move(other.socket);
     messageId = std::move(other.messageId);
     responseTarget = std::move(other.responseTarget);
+    is_flair = std::move(other.is_flair);
     return *this;
 }
 

@@ -146,7 +146,6 @@ void
 serialize(const google::protobuf::Message& from,
           Core::Buffer& to,
           uint32_t skipBytes = 0);
-
 /**
  * An abstract stream from which ProtoBufs may be read.
  */

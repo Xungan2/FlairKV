@@ -28,8 +28,12 @@
 #include "Core/Endian.h"
 #include "Event/Loop.h"
 #include "RPC/MessageSocket.h"
+#include "Protocol/FlairProtocol.h"
 
 namespace LogCabin {
+
+using LogCabin::Protocol::FlairProtocol::FlairProtocol;
+
 namespace RPC {
 
 namespace {
@@ -49,17 +53,21 @@ dupOrPanic(int oldfd)
 ////////// MessageSocket::SendSocket //////////
 
 MessageSocket::SendSocket::SendSocket(int fd,
-                                      MessageSocket& messageSocket)
+                                      MessageSocket& messageSocket,
+                                      uint8_t is_udp=0)
     : Event::File(fd)
     , messageSocket(messageSocket)
 {
-    int flag = 1;
-    int r = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
-    if (r < 0) {
-        // This should be a warning, but some unit tests pass weird types of
-        // file descriptors in here. It's not very important, anyhow.
-        NOTICE("Could not set TCP_NODELAY flag on sending socket %d: %s",
-               fd, strerror(errno));
+    if(!is_udp)
+    {
+        int flag = 1;
+        int r = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
+        if (r < 0) {
+            // This should be a warning, but some unit tests pass weird types of
+            // file descriptors in here. It's not very important, anyhow.
+            NOTICE("Could not set TCP_NODELAY flag on sending socket %d: %s",
+                fd, strerror(errno));
+        }
     }
 }
 
@@ -76,19 +84,23 @@ MessageSocket::SendSocket::handleFileEvent(uint32_t events)
 ////////// MessageSocket::ReceiveSocket //////////
 
 MessageSocket::ReceiveSocket::ReceiveSocket(int fd,
-                                            MessageSocket& messageSocket)
+                                            MessageSocket& messageSocket,
+                                            uint8_t is_udp=0)
     : Event::File(fd)
     , messageSocket(messageSocket)
 {
-    // I don't know that TCP_NODELAY has any effect if we're only reading from
-    // this file descriptor, but I guess it can't hurt.
-    int flag = 1;
-    int r = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
-    if (r < 0) {
-        // This should be a warning, but some unit tests pass weird types of
-        // file descriptors in here. It's not very important, anyhow.
-        NOTICE("Could not set TCP_NODELAY flag on receiving socket %d: %s",
-                fd, strerror(errno));
+    if (!is_udp)
+    {
+        // I don't know that TCP_NODELAY has any effect if we're only reading from
+        // this file descriptor, but I guess it can't hurt.
+        int flag = 1;
+        int r = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
+        if (r < 0) {
+            // This should be a warning, but some unit tests pass weird types of
+            // file descriptors in here. It's not very important, anyhow.
+            NOTICE("Could not set TCP_NODELAY flag on receiving socket %d: %s",
+                    fd, strerror(errno));
+        }
     }
 }
 
@@ -148,11 +160,14 @@ MessageSocket::Outbound::Outbound(Outbound&& other)
 }
 
 MessageSocket::Outbound::Outbound(MessageId messageId,
-                                  Core::Buffer message)
+                                  Core::Buffer message,
+                                  uint8_t is_flair=0)
     : bytesSent(0)
     , header()
     , message(std::move(message))
 {
+    header.is_flair = is_flair;
+
     header.fixed = 0xdaf4;
     header.version = 1;
     header.payloadLength = uint32_t(this->message.getLength());
@@ -184,8 +199,27 @@ MessageSocket::MessageSocket(Handler& handler,
     , sendSocket(fd, *this)
     , receiveSocketMonitor(eventLoop, receiveSocket, EPOLLIN)
     , sendSocketMonitor(eventLoop, sendSocket, 0)
+    , is_udp(0)
 {
 }
+
+// MessageSocket::MessageSocket(Handler& handler,
+//                              Event::Loop& eventLoop, int fd,
+//                              uint32_t maxMessageLength,
+//                              uint8_t is_udp)
+//     : is_udp(is_udp)
+//     , maxMessageLength(maxMessageLength)
+//     , handler(handler)
+//     , eventLoop(eventLoop)
+//     , inbound()
+//     , outboundQueueMutex()
+//     , outboundQueue()
+//     , receiveSocket(dupOrPanic(fd), *this, is_udp)
+//     , sendSocket(fd, *this, is_udp)
+//     , receiveSocketMonitor(eventLoop, receiveSocket, EPOLLIN)
+//     , sendSocketMonitor(eventLoop, sendSocket, 0)
+// {
+// }
 
 MessageSocket::~MessageSocket()
 {
@@ -218,6 +252,27 @@ MessageSocket::sendMessage(MessageId messageId, Core::Buffer contents)
         std::lock_guard<Core::Mutex> lock(outboundQueueMutex);
         kick = outboundQueue.empty();
         outboundQueue.emplace_back(messageId, std::move(contents));
+    }
+    // Make sure the SendSocket is set up to call writable().
+    if (kick)
+        sendSocketMonitor.setEvents(EPOLLOUT|EPOLLONESHOT);
+}
+
+void
+MessageSocket::sendMessage(MessageId messageId, Core::Buffer contents, uint8_t is_flair)
+{
+    // Check the message length.
+    if (contents.getLength() > maxMessageLength) {
+        PANIC("Message of length %lu bytes is too long to send "
+              "(limit is %u bytes)",
+              contents.getLength(), maxMessageLength);
+    }
+
+    bool kick;
+    { // Place the message on the outbound queue.
+        std::lock_guard<Core::Mutex> lock(outboundQueueMutex);
+        kick = outboundQueue.empty();
+        outboundQueue.emplace_back(messageId, std::move(contents), is_flair);
     }
     // Make sure the SendSocket is set up to call writable().
     if (kick)
@@ -301,7 +356,8 @@ MessageSocket::readable()
                 return;
             }
             handler.handleReceivedMessage(inbound.header.messageId,
-                                          std::move(inbound.message));
+                                          std::move(inbound.message),
+                                          inbound.header.is_flair);
             // Transition to receiving header
             inbound.bytesRead = 0;
         }
@@ -322,6 +378,83 @@ MessageSocket::read(void* buf, size_t maxBytes)
         return 0;
     PANIC("Error while reading from socket: %s", strerror(errno));
 }
+
+// void
+// MessageSocket::readable_udp()
+// {
+//     {
+//         ssize_t bytesRead = read_udp(&inbound.header, sizeof(Header), MSG_PEEK, &udp_addr, &udp_addr_len);
+//         if (bytesRead == -1) {
+//             disconnect();
+//             return;
+//         }
+//         if (bytesRead != sizeof(Header)) {
+//             WARNING("Disconnecting since message's header is broken");
+//             disconnect();
+//             return;
+//         }
+//         inbound.header.fromBigEndian();
+//         if (inbound.header.fixed != 0xdaf4) {
+//             WARNING("Disconnecting since message doesn't start with magic "
+//                     "0xdaf4 (first two bytes are 0x%02x)",
+//                     inbound.header.fixed);
+//             disconnect();
+//             return;
+//         }
+//         if (inbound.header.version != 1) {
+//             WARNING("Disconnecting since message uses version %u, but "
+//                     "this code only understands version 1",
+//                     inbound.header.version);
+//             disconnect();
+//             return;
+//         }
+//         if (sizeof(Header) + inbound.header.payloadLength > maxMessageLength) {
+//             WARNING("Disconnecting since message is too long to receive "
+//                     "(message is %u bytes, limit is %u bytes)",
+//                     inbound.header.payloadLength, maxMessageLength);
+//             disconnect();
+//             return;
+//         }
+//         inbound.message.setData(new char[inbound.header.payloadLength],
+//                                 inbound.header.payloadLength,
+//                                 Core::Buffer::deleteArrayFn<char>);
+//     }
+
+//     {
+//         char* tmp_buffer = new char[sizeof(Header) + inbound.header.payloadLength];
+//         ssize_t bytesRead = read_udp(tmp_buffer, maxMessageLength, 0, NULL, NULL);
+//         if (bytesRead == -1) {
+//             delete(tmp_buffer);
+//             disconnect();
+//             return;
+//         }
+//         if (bytesRead <= sizeof(Header)) {
+//             delete(tmp_buffer);
+//             WARNING("Disconnecting since message's payload is broken");
+//             disconnect();
+//             return;
+//         }
+//         memcpy(static_cast<char*>(inbound.message.getData()),
+//                tmp_buffer + sizeof(Header), bytesRead - sizeof(Header));
+//         delete(tmp_buffer);
+//     }
+
+//     handler.handleReceivedMessage(inbound.header.messageId,
+//                                   std::move(inbound.message));
+// }
+
+// ssize_t
+// MessageSocket::read_udp(void* buf, size_t maxBytes, int flags, sockaddr* addr, socklen_t* addr_len)
+// {
+//     ssize_t actual = recvfrom(receiveSocket.fd, buf, maxBytes, flags, addr, addr_len);
+//     if (actual > 0)
+//         return actual;
+//     if (actual == 0 || // peer performed orderly shutdown.
+//         errno == ECONNRESET || errno == ETIMEDOUT || errno == EHOSTUNREACH) {
+//         return -1;
+//     }
+//     PANIC("Error while reading from socket: %s", strerror(errno));
+// }
 
 void
 MessageSocket::writable()
@@ -369,6 +502,10 @@ MessageSocket::writable()
 
         struct msghdr msg;
         memset(&msg, 0, sizeof(msg));
+        if (is_udp) {
+            msg.msg_name = &udp_addr;
+            msg.msg_namelen = udp_addr_len;
+        }
         msg.msg_iov = iov;
         msg.msg_iovlen = IOV_LEN;
 
@@ -400,6 +537,14 @@ MessageSocket::writable()
             outboundQueue.emplace_front(std::move(outbound));
             return;
         }
+
+        // if (bytesSent != (sizeof(Header) +
+        //                   outbound.message.getLength())) {
+        //     sendSocketMonitor.setEvents(EPOLLOUT|EPOLLONESHOT);
+        //     std::lock_guard<Core::Mutex> lockGuard(outboundQueueMutex);
+        //     outboundQueue.emplace_front(std::move(outbound));
+        //     return;
+        // }
     }
 }
 

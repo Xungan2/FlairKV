@@ -82,7 +82,9 @@ LeaderRPC::Call::~Call()
 void
 LeaderRPC::Call::start(OpCode opCode,
                        const google::protobuf::Message& request,
-                       TimePoint timeout)
+                       TimePoint timeout,
+                       std::string& realPath,
+                       uint8_t is_flair)
 {
     // Save a reference to the leaderSession
     cachedSession = leaderRPC.getSession(timeout);
@@ -90,7 +92,9 @@ LeaderRPC::Call::start(OpCode opCode,
                          Protocol::Common::ServiceId::CLIENT_SERVICE,
                          1,
                          opCode,
-                         request);
+                         request,
+                         realPath,
+                         is_flair);
 }
 
 void
@@ -182,11 +186,13 @@ LeaderRPC::Status
 LeaderRPC::call(OpCode opCode,
                 const google::protobuf::Message& request,
                 google::protobuf::Message& response,
-                TimePoint timeout)
+                TimePoint timeout,
+                std::string& realPath,
+                uint8_t is_flair=0)
 {
     while (true) {
         Call c(*this);
-        c.start(opCode, request, timeout);
+        c.start(opCode, request, timeout, realPath, is_flair);
         Call::Status callStatus = c.wait(response, timeout);
         switch (callStatus) {
             case Call::Status::OK:

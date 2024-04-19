@@ -34,16 +34,18 @@ namespace RPC {
 
 ////////// OpaqueServer::MessageSocketHandler //////////
 
-OpaqueServer::MessageSocketHandler::MessageSocketHandler(OpaqueServer* server)
+OpaqueServer::MessageSocketHandler::MessageSocketHandler(OpaqueServer* server, uint8_t is_udp=0)
     : server(server)
     , self()
+    , is_udp(is_udp)
 {
 }
 
 void
 OpaqueServer::MessageSocketHandler::handleReceivedMessage(
         MessageId messageId,
-        Core::Buffer message)
+        Core::Buffer message,
+        uint8_t is_flair)
 {
     if (server == NULL)
         return;
@@ -76,7 +78,7 @@ OpaqueServer::MessageSocketHandler::handleReceivedMessage(
         }
         default: { // normal RPC request
             VERBOSE("Handling RPC");
-            OpaqueServerRPC rpc(self, messageId, std::move(message));
+            OpaqueServerRPC rpc(self, messageId, std::move(message), is_flair);
             server->rpcHandler.handleRPC(std::move(rpc));
         }
     }
@@ -100,18 +102,20 @@ OpaqueServer::MessageSocketHandler::handleDisconnect()
 ////////// OpaqueServer::SocketWithHandler //////////
 
 std::shared_ptr<OpaqueServer::SocketWithHandler>
-OpaqueServer::SocketWithHandler::make(OpaqueServer* server, int fd)
+OpaqueServer::SocketWithHandler::make(OpaqueServer* server, int fd, uint8_t is_udp=0)
 {
     std::shared_ptr<SocketWithHandler> socket(
-        new SocketWithHandler(server, fd));
+        new SocketWithHandler(server, fd, is_udp));
     socket->handler.self = socket;
     return socket;
 }
 
 OpaqueServer::SocketWithHandler::SocketWithHandler(
         OpaqueServer* server,
-        int fd)
-    : handler(server)
+        int fd,
+        uint8_t is_udp=0)
+    : is_udp(is_udp)
+    , handler(server, is_udp)
     , monitor(handler, server->eventLoop, fd, server->maxMessageLength)
 {
 }
@@ -249,6 +253,58 @@ OpaqueServer::bind(const Address& listenAddress)
     boundListeners.emplace_back(*this, fd);
     return "";
 }
+
+// std::string 
+// OpaqueServer::bind_udp(const Address& listenAddress)
+// {
+//     using Core::StringUtil::format;
+
+//     if (!listenAddress.isValid()) {
+//         return format("Can't listen on invalid address: %s",
+//                       listenAddress.toString().c_str());
+//     }
+
+//     int fd = socket(AF_INET, SOCK_DGRAM|SOCK_CLOEXEC, 0);
+//     if (fd < 0)
+//         PANIC("Could not create new UDP socket");
+
+//     int flag = 1;
+//     int r = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
+//                        &flag, sizeof(flag));
+//     if (r < 0) {
+//         PANIC("Could not set SO_REUSEADDR on socket: %s",
+//               strerror(errno));
+//     }
+
+
+//     r = ::bind(fd, listenAddress.getSockAddr(),
+//                    listenAddress.getSockAddrLen());
+//     if (r != 0) {
+//         std::string msg =
+//             format("Could not bind to address %s: %s%s",
+//                    listenAddress.toString().c_str(),
+//                    strerror(errno),
+//                    errno == EINVAL ? " (is the port in use?)" : "");
+//         r = close(fd);
+//         if (r != 0) {
+//             WARNING("Could not close socket that failed to bind: %s",
+//                     strerror(errno));
+//         }
+//         return msg;
+//     }
+
+//     // Why 128? No clue. It's what libevent was setting it to.
+//     r = listen(fd, 128);
+//     if (r != 0) {
+//         PANIC("Could not invoke listen() on address %s: %s",
+//               listenAddress.toString().c_str(),
+//               strerror(errno));
+//     }
+
+//     std::lock_guard<Core::Mutex> lock(boundListenersMutex);
+//     boundListeners.emplace_back(*this, fd);
+//     return "";
+// }
 
 } // namespace LogCabin::RPC
 } // namespace LogCabin

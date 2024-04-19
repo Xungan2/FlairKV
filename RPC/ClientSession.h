@@ -61,6 +61,14 @@ class ClientSession {
                   uint32_t maxMessageLength,
                   TimePoint timeout,
                   const Core::Config& config);
+
+    // ClientSession(Event::Loop& eventLoop,
+    //               const Address& address,
+    //               uint32_t maxMessageLength,
+    //               TimePoint timeout,
+    //               const Core::Config& config,
+    //               uint8_t is_udp);
+
   public:
     /**
      * Return a new ClientSession object. This object is managed by a
@@ -149,7 +157,7 @@ class ClientSession {
     class MessageSocketHandler : public MessageSocket::Handler {
       public:
         explicit MessageSocketHandler(ClientSession& clientSession);
-        void handleReceivedMessage(MessageId messageId, Core::Buffer message);
+        void handleReceivedMessage(MessageId messageId, Core::Buffer message, uint8_t is_flair);
         void handleDisconnect();
         ClientSession& session;
     };

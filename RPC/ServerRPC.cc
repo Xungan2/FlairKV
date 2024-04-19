@@ -16,8 +16,12 @@
 
 #include "Core/ProtoBuf.h"
 #include "RPC/ServerRPC.h"
+#include "Protocol/FlairProtocol.h"
 
 namespace LogCabin {
+
+using LogCabin::Protocol::FlairProtocol::FlairProtocol;
+
 namespace RPC {
 
 using RPC::Protocol::RequestHeaderPrefix;
@@ -33,6 +37,23 @@ ServerRPC::ServerRPC(OpaqueServerRPC opaqueRPC)
     , serviceSpecificErrorVersion(0)
     , opCode(0)
 {
+    if (this->opaqueRPC.is_flair)
+    {
+        const Core::Buffer& request = this->opaqueRPC.request;
+
+        // Carefully read the Flair headers.
+        if (request.getLength() < sizeof(FlairProtocol)) {
+            reject(Status::INVALID_REQUEST);
+            return;
+        }
+        FlairProtocol FlairHeader =
+            *static_cast<const FlairProtocol*>(request.getData());
+
+        memcpy(&flair_hdr, &FlairHeader, sizeof(FlairProtocol));
+        this->opaqueRPC.request.removeFlair();
+        Protocol::FlairProtocol::fromBigEndian(flair_hdr);
+    }
+
     const Core::Buffer& request = this->opaqueRPC.request;
 
     // Carefully read the headers.
@@ -72,6 +93,7 @@ ServerRPC::ServerRPC(ServerRPC&& other)
     , service(other.service)
     , serviceSpecificErrorVersion(other.serviceSpecificErrorVersion)
     , opCode(other.opCode)
+    , flair_hdr(other.flair_hdr)
 {
     other.active = false;
 }
@@ -94,7 +116,14 @@ ServerRPC::operator=(ServerRPC&& other)
     service = other.service;
     serviceSpecificErrorVersion = other.serviceSpecificErrorVersion;
     opCode = other.opCode;
+    flair_hdr = other.flair_hdr;
     return *this;
+}
+
+uint8_t
+ServerRPC::isFlair() const
+{
+    return opaqueRPC.is_flair;
 }
 
 bool
@@ -141,6 +170,8 @@ ServerRPC::reply(const google::protobuf::Message& payload)
     responseHeader.prefix.toBigEndian();
     responseHeader.toBigEndian();
     opaqueRPC.response = std::move(buffer);
+    if (isFlair())
+        setFlairHeader();
     opaqueRPC.sendReply();
 }
 
@@ -157,6 +188,8 @@ ServerRPC::returnError(const google::protobuf::Message& serviceSpecificError)
     responseHeader.prefix.toBigEndian();
     responseHeader.toBigEndian();
     opaqueRPC.response = std::move(buffer);
+    if (isFlair())
+        setFlairHeader();
     opaqueRPC.sendReply();
 }
 
@@ -191,7 +224,22 @@ ServerRPC::reject(RPC::Protocol::Status status)
         &responseHeader,
         sizeof(responseHeader),
         Core::Buffer::deleteObjectFn<ResponseHeaderVersion1*>);
+    if (isFlair())
+        setFlairHeader();
     opaqueRPC.sendReply();
+}
+
+void
+ServerRPC::handleStaleRPC()
+{
+    reject(Status::FLAIR_STALE_WRITE);
+}
+
+void
+ServerRPC::setFlairHeader()
+{
+    Protocol::FlairProtocol::toBigEndian(flair_hdr);
+    opaqueRPC.response.setFlair(flair_hdr);
 }
 
 

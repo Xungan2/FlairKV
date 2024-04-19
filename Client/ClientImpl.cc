@@ -121,7 +121,9 @@ void
 treeCall(LeaderRPCBase& leaderRPC,
          const Protocol::Client::ReadOnlyTree::Request& request,
          Protocol::Client::ReadOnlyTree::Response& response,
-         ClientImpl::TimePoint timeout)
+         ClientImpl::TimePoint timeout,
+         std::string& realPath,
+         uint8_t is_flair=0)
 {
     VERBOSE("Calling read-only tree query with request:\n%s",
             Core::StringUtil::trim(
@@ -131,7 +133,7 @@ treeCall(LeaderRPCBase& leaderRPC,
     Protocol::Client::StateMachineQuery::Response qresponse;
     *qrequest.mutable_tree() = request;
     status = leaderRPC.call(Protocol::Client::OpCode::STATE_MACHINE_QUERY,
-                            qrequest, qresponse, timeout);
+                            qrequest, qresponse, timeout, realPath, is_flair);
     switch (status) {
         case LeaderRPC::Status::OK:
             response = *qresponse.mutable_tree();
@@ -165,7 +167,9 @@ void
 treeCall(LeaderRPCBase& leaderRPC,
          const Protocol::Client::ReadWriteTree::Request& request,
          Protocol::Client::ReadWriteTree::Response& response,
-         ClientImpl::TimePoint timeout)
+         ClientImpl::TimePoint timeout,
+         std::string& realPath,
+         uint8_t is_flair=0)
 {
     VERBOSE("Calling read-write tree command with request:\n%s",
             Core::StringUtil::trim(
@@ -180,7 +184,7 @@ treeCall(LeaderRPCBase& leaderRPC,
         status = LeaderRPC::Status::TIMEOUT;
     } else {
         status = leaderRPC.call(Protocol::Client::OpCode::STATE_MACHINE_COMMAND,
-                                crequest, cresponse, timeout);
+                                crequest, cresponse, timeout, realPath, is_flair);
     }
 
     switch (status) {
@@ -700,7 +704,7 @@ ClientImpl::makeDirectory(const std::string& path,
     request.mutable_make_directory()->set_path(realPath);
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
-             request, response, timeout);
+             request, response, timeout, realPath);
     exactlyOnceRPCHelper.doneWithRPC(request.exactly_once());
     if (response.status() != Protocol::Client::Status::OK)
         return treeError(response);
@@ -724,7 +728,7 @@ ClientImpl::listDirectory(const std::string& path,
     request.mutable_list_directory()->set_path(realPath);
     Protocol::Client::ReadOnlyTree::Response response;
     treeCall(*leaderRPC,
-             request, response, timeout);
+             request, response, timeout, realPath);
     if (response.status() != Protocol::Client::Status::OK)
         return treeError(response);
     children = std::vector<std::string>(
@@ -750,7 +754,7 @@ ClientImpl::removeDirectory(const std::string& path,
     request.mutable_remove_directory()->set_path(realPath);
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
-             request, response, timeout);
+             request, response, timeout, realPath);
     exactlyOnceRPCHelper.doneWithRPC(request.exactly_once());
     if (response.status() != Protocol::Client::Status::OK)
         return treeError(response);
@@ -762,7 +766,8 @@ ClientImpl::write(const std::string& path,
                   const std::string& workingDirectory,
                   const std::string& contents,
                   const Condition& condition,
-                  TimePoint timeout)
+                  TimePoint timeout,
+                  uint8_t is_flair)
 {
     std::string realPath;
     Result result = canonicalize(path, workingDirectory, realPath);
@@ -776,7 +781,7 @@ ClientImpl::write(const std::string& path,
     request.mutable_write()->set_contents(contents);
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
-             request, response, timeout);
+             request, response, timeout, realPath, is_flair);
     exactlyOnceRPCHelper.doneWithRPC(request.exactly_once());
     if (response.status() != Protocol::Client::Status::OK)
         return treeError(response);
@@ -788,7 +793,8 @@ ClientImpl::read(const std::string& path,
                  const std::string& workingDirectory,
                  const Condition& condition,
                  TimePoint timeout,
-                 std::string& contents)
+                 std::string& contents,
+                 uint8_t is_flair)
 {
     contents = "";
     std::string realPath;
@@ -800,7 +806,7 @@ ClientImpl::read(const std::string& path,
     request.mutable_read()->set_path(realPath);
     Protocol::Client::ReadOnlyTree::Response response;
     treeCall(*leaderRPC,
-             request, response, timeout);
+             request, response, timeout, realPath, is_flair);
     if (response.status() != Protocol::Client::Status::OK)
         return treeError(response);
     contents = response.read().contents();
@@ -824,7 +830,7 @@ ClientImpl::removeFile(const std::string& path,
     request.mutable_remove_file()->set_path(realPath);
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
-             request, response, timeout);
+             request, response, timeout, realPath);
     exactlyOnceRPCHelper.doneWithRPC(request.exactly_once());
     if (response.status() != Protocol::Client::Status::OK)
         return treeError(response);

@@ -109,6 +109,7 @@ class OpaqueServer {
      *      address; the empty string otherwise.
      */
     std::string bind(const Address& listenAddress);
+    // std::string bind_udp(const Address& listenAddress);
 
   private:
 
@@ -120,8 +121,8 @@ class OpaqueServer {
      */
     class MessageSocketHandler : public MessageSocket::Handler {
       public:
-        explicit MessageSocketHandler(OpaqueServer* server);
-        void handleReceivedMessage(MessageId messageId, Core::Buffer message);
+        explicit MessageSocketHandler(OpaqueServer* server, uint8_t is_udp);
+        void handleReceivedMessage(MessageId messageId, Core::Buffer message, uint8_t is_flair);
         void handleDisconnect();
 
         /**
@@ -146,6 +147,9 @@ class OpaqueServer {
         // MessageSocketHandler is not copyable.
         MessageSocketHandler(const MessageSocketHandler&) = delete;
         MessageSocketHandler& operator=(const MessageSocketHandler&) = delete;
+
+      private:
+        uint8_t is_udp;
     };
 
     /**
@@ -168,14 +172,15 @@ class OpaqueServer {
          *      TCP connection with client for MessageSocket.
          */
         static std::shared_ptr<SocketWithHandler>
-        make(OpaqueServer* server, int fd);
+        make(OpaqueServer* server, int fd, uint8_t is_udp);
 
         ~SocketWithHandler();
         MessageSocketHandler handler;
         MessageSocket monitor;
+        uint8_t is_udp;
 
       private:
-        SocketWithHandler(OpaqueServer* server, int fd);
+        SocketWithHandler(OpaqueServer* server, int fd, uint8_t is_udp);
     };
 
     /**

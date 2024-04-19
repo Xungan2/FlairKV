@@ -151,11 +151,23 @@ ClientService::setConfiguration(RPC::ServerRPC rpc)
 void
 ClientService::stateMachineCommand(RPC::ServerRPC rpc)
 {
+    {
+        std::pair<Result, uint64_t> result = globals.raft->getLastCommitIndex();
+        if (result.first == Result::SUCCESS)
+            if (rpc.isFlair() && !globals.raft->cmpFlairPair(rpc.flair_hdr.sid, rpc.flair_hdr.seq)) {
+                rpc.handleStaleRPC();
+                return;
+            }
+    }
+
     PRELUDE(StateMachineCommand);
     Core::Buffer cmdBuffer;
     rpc.getRequest(cmdBuffer);
     std::pair<Result, uint64_t> result = globals.raft->replicate(cmdBuffer);
+    uint8_t cflwrs = globals.raft->getFlairConsistentFollowers();
     if (result.first == Result::RETRY || result.first == Result::NOT_LEADER) {
+        rpc.flair_hdr.from_leader = 0;
+        rpc.flair_hdr.opcode = Protocol::FlairProtocol::OP_WRITE_FAILED;
         Protocol::Client::Error error;
         error.set_error_code(Protocol::Client::Error::NOT_LEADER);
         std::string leaderHint = globals.raft->getLeaderHint();
@@ -166,7 +178,12 @@ ClientService::stateMachineCommand(RPC::ServerRPC rpc)
     }
     assert(result.first == Result::SUCCESS);
     uint64_t logIndex = result.second;
+    rpc.flair_hdr.from_leader = 1;
+    rpc.flair_hdr.opcode = Protocol::FlairProtocol::OP_WRITE_REPLY;
+    rpc.flair_hdr.log_idx = logIndex;
+    rpc.flair_hdr.cflwrs = cflwrs;
     if (!globals.stateMachine->waitForResponse(logIndex, request, response)) {
+        rpc.flair_hdr.opcode = Protocol::FlairProtocol::OP_WRITE_FAILED;
         rpc.rejectInvalidRequest();
         return;
     }
@@ -176,23 +193,46 @@ ClientService::stateMachineCommand(RPC::ServerRPC rpc)
 void
 ClientService::stateMachineQuery(RPC::ServerRPC rpc)
 {
-    PRELUDE(StateMachineQuery);
-    std::pair<Result, uint64_t> result = globals.raft->getLastCommitIndex();
-    if (result.first == Result::RETRY || result.first == Result::NOT_LEADER) {
-        Protocol::Client::Error error;
-        error.set_error_code(Protocol::Client::Error::NOT_LEADER);
-        std::string leaderHint = globals.raft->getLeaderHint();
-        if (!leaderHint.empty())
-            error.set_leader_hint(leaderHint);
-        rpc.returnError(error);
-        return;
+    if (!rpc.isFlair())
+    {
+        PRELUDE(StateMachineQuery);
+        std::pair<Result, uint64_t> result = globals.raft->getLastCommitIndex();
+        if (result.first == Result::RETRY || result.first == Result::NOT_LEADER) {
+            Protocol::Client::Error error;
+            error.set_error_code(Protocol::Client::Error::NOT_LEADER);
+            std::string leaderHint = globals.raft->getLeaderHint();
+            if (!leaderHint.empty())
+                error.set_leader_hint(leaderHint);
+            rpc.returnError(error);
+            return;
+        }
+        assert(result.first == Result::SUCCESS);
+        uint64_t logIndex = result.second;
+        globals.stateMachine->wait(logIndex);
+        if (!globals.stateMachine->query(request, response))
+        {
+            rpc.rejectInvalidRequest();
+            return;
+        }
+        rpc.reply(response);
     }
-    assert(result.first == Result::SUCCESS);
-    uint64_t logIndex = result.second;
-    globals.stateMachine->wait(logIndex);
-    if (!globals.stateMachine->query(request, response))
-        rpc.rejectInvalidRequest();
-    rpc.reply(response);
+    else
+    {
+        rpc.flair_hdr.opcode = Protocol::FlairProtocol::OP_READ_REPLY;
+        PRELUDE(StateMachineQuery);
+        std::pair<Result, uint64_t> result = globals.raft->getLastCommitIndex();
+        rpc.flair_hdr.from_leader = result.first == Result::SUCCESS ? 1:0;
+        rpc.flair_hdr.opcode = Protocol::FlairProtocol::OP_READ_REPLY;
+        uint64_t logIndex = rpc.flair_hdr.log_idx;
+        globals.stateMachine->wait(logIndex);
+        if (!globals.stateMachine->query(request, response))
+        {
+            rpc.flair_hdr.opcode = Protocol::FlairProtocol::OP_READ_FAILED;
+            rpc.rejectInvalidRequest();
+            return;
+        }
+        rpc.reply(response);
+    }
 }
 
 void

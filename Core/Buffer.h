@@ -141,6 +141,9 @@ class Buffer {
      */
     void reset();
 
+    void removeFlair();
+    void setFlair(FlairProtocol& flair_hdr);
+
   private:
     /**
      * A pointer to the data or NULL if none has been set.

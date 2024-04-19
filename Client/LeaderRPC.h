@@ -119,7 +119,9 @@ class LeaderRPCBase {
     virtual Status call(OpCode opCode,
                         const google::protobuf::Message& request,
                         google::protobuf::Message& response,
-                        TimePoint timeout) = 0;
+                        TimePoint timeout,
+                        std::string& realPath,
+                        uint8_t is_flair) = 0;
 
     /**
      * An asynchronous version of call(). This allows multiple RPCs to be
@@ -183,7 +185,9 @@ class LeaderRPCBase {
          */
         virtual void start(OpCode opCode,
                            const google::protobuf::Message& request,
-                           TimePoint timeout) = 0;
+                           TimePoint timeout,
+                           std::string& realPath,
+                           uint8_t is_flair) = 0;
         /**
          * Cancel the RPC. This may only be called after start(), but it may
          * be called safely from a separate thread.
@@ -248,7 +252,9 @@ class LeaderRPC : public LeaderRPCBase {
     Status call(OpCode opCode,
                 const google::protobuf::Message& request,
                 google::protobuf::Message& response,
-                TimePoint timeout);
+                TimePoint timeout,
+                std::string& realPath,
+                uint8_t is_flair);
 
     /// See LeaderRPCBase::makeCall().
     std::unique_ptr<LeaderRPCBase::Call> makeCall();
@@ -262,7 +268,9 @@ class LeaderRPC : public LeaderRPCBase {
         ~Call();
         void start(OpCode opCode,
                    const google::protobuf::Message& request,
-                   TimePoint timeout);
+                   TimePoint timeout,
+                   std::string& realPath,
+                   uint8_t is_flair);
         void cancel();
         Status wait(google::protobuf::Message& response,
                     TimePoint timeout);

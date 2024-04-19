@@ -152,15 +152,15 @@ main(int argc, char** argv)
     std::string working_dir = tree.getWorkingDirectory();
     assert(working_dir == "/KV_db");
 
-    tree.writeEx("0xAAAAAAAA", "233233");
-    tree.writeEx("0xBBBBBBBB", "123456");
+    tree.writeEx("0xAAAAAAAA", "233233", 1);
+    tree.writeEx("0xBBBBBBBB", "123456", 1);
     std::vector<std::string> key_list = std::move(tree.listDirectoryEx("./"));
     std::cout<<"Current keys:"<<std::endl;
     for (auto key: key_list) {
         std::cout<<key<<std::endl;
     }
 
-    std::string contents = tree.readEx("0xAAAAAAAA");
+    std::string contents = tree.readEx("0xAAAAAAAA", 1);
     std::cout<<"Read content: "<<contents<<std::endl;
 
     tree.setWorkingDirectoryEx("/");

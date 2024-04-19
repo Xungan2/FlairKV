@@ -500,6 +500,7 @@ class Configuration {
         uint64_t min(const GetValue& getValue) const;
         bool quorumAll(const Predicate& predicate) const;
         uint64_t quorumMin(const GetValue& getValue) const;
+        uint8_t getConsistentFollowers(const GetValue& getValue, uint64_t commitIndex) const;
         std::vector<ServerRef> servers;
     };
 
@@ -575,6 +576,8 @@ class Configuration {
      *      greater than or equal to this one. 0 if the configuration is BLANK.
      */
     uint64_t quorumMin(const GetValue& getValue) const;
+
+    uint8_t getConsistentFollowers(const GetValue& getValue, uint64_t commitIndex) const;
 
     /**
      * Remove the staging servers, if any. Return to the configuration state
@@ -1464,6 +1467,14 @@ class RaftConsensus {
      * init() is called.
      */
     std::string serverAddresses;
+
+    uint8_t flair_cflwrs;
+    std::pair<uint32_t, uint64_t> flair_pair;
+
+    uint8_t getFlairConsistentFollowers();
+
+    void setFlairPair(uint32_t sid, uint64_t seq);
+    bool cmpFlairPair(uint32_t sid, uint64_t seq);
 
   private:
 

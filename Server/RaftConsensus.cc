@@ -475,6 +475,26 @@ Configuration::SimpleConfiguration::quorumMin(const GetValue& getValue) const
     return values.at((values.size() - 1)/ 2);
 }
 
+uint8_t
+Configuration::SimpleConfiguration::getConsistentFollowers(
+    const GetValue& getValue, uint64_t commitIndex) const
+{
+    if (servers.empty())
+        return 0;
+    
+    uint8_t cflwrs_bitmap = 0;
+    for (auto it = servers.begin(); it != servers.end(); ++it)
+    {
+        uint64_t value = getValue(**it);
+        if (value >= commitIndex)
+        {
+            uint64_t replica_id = (**it).serverId;
+            cflwrs_bitmap |= 1 << replica_id;
+        }
+    }
+    return cflwrs_bitmap;
+}
+
 ////////// Configuration //////////
 
 Configuration::Configuration(uint64_t serverId, RaftConsensus& consensus)
@@ -541,6 +561,17 @@ Configuration::quorumMin(const GetValue& getValue) const
                         newServers.quorumMin(getValue));
     } else {
         return oldServers.quorumMin(getValue);
+    }
+}
+
+uint8_t
+Configuration::getConsistentFollowers(
+    const GetValue& getValue, uint64_t commitIndex) const
+{
+    if (state == State::TRANSITIONAL) {
+        return 0;
+    } else {
+        return oldServers.getConsistentFollowers(getValue, commitIndex);
     }
 }
 
@@ -996,6 +1027,8 @@ RaftConsensus::RaftConsensus(Globals& globals)
     , stateMachineUpdaterThread()
     , stepDownThread()
     , invariants(*this)
+    , flair_cflwrs(0)
+    , flair_pair(std::make_pair(0, 0))
 {
 }
 
@@ -2193,6 +2226,7 @@ RaftConsensus::advanceCommitIndex()
     if (log->getEntry(newCommitIndex).term() != currentTerm)
         return;
     commitIndex = newCommitIndex;
+    flair_cflwrs = configuration->getConsistentFollowers(commitIndex);
     VERBOSE("New commitIndex: %lu", commitIndex);
     assert(commitIndex <= log->getLastLogIndex());
     stateChanged.notify_all();
@@ -3031,6 +3065,27 @@ operator<<(std::ostream& os, RaftConsensus::State state)
             break;
     }
     return os;
+}
+
+uint8_t
+RaftConsensus::getFlairConsistentFollowers() {
+    std::unique_lock<Mutex> lockGuard(mutex);
+    return flair_cflwrs;
+}
+
+void
+RaftConsensus::setFlairPair(uint32_t sid, uint64_t seq) {
+    std::unique_lock<Mutex> lockGuard(mutex);
+    flair_pair = std::make_pair(sid, seq);
+}
+
+bool
+RaftConsensus::cmpFlairPair(uint32_t sid, uint64_t seq) {
+    std::unique_lock<Mutex> lockGuard(mutex);
+    if (flair_pair < std::make_pair(sid, seq))
+        return true;
+    else
+        return false;
 }
 
 } // namespace LogCabin::Server
