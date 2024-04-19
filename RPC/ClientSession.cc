@@ -376,7 +376,7 @@ ClientSession::~ClientSession()
 }
 
 OpaqueClientRPC
-ClientSession::sendRequest(Core::Buffer request)
+ClientSession::sendRequest(Core::Buffer request, uint8_t is_flair)
 {
     MessageSocket::MessageId messageId;
     {
@@ -395,7 +395,7 @@ ClientSession::sendRequest(Core::Buffer request)
     // Release the mutex before sending so that receives can be processed
     // simultaneously with sends.
     if (messageSocket)
-        messageSocket->sendMessage(messageId, std::move(request));
+        messageSocket->sendMessage(messageId, std::move(request), is_flair);
     OpaqueClientRPC rpc;
     rpc.session = self.lock();
     rpc.responseToken = messageId;

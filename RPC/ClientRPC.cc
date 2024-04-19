@@ -77,7 +77,7 @@ ClientRPC::ClientRPC(std::shared_ptr<RPC::ClientSession> session,
 
         // Send the request to the server
         assert(session); // makes debugging more obvious for somewhat common error
-        opaqueRPC = session->sendRequest(std::move(requestBuffer));
+        opaqueRPC = session->sendRequest(std::move(requestBuffer), 1);
     }
     else
     {
@@ -85,7 +85,7 @@ ClientRPC::ClientRPC(std::shared_ptr<RPC::ClientSession> session,
                                   sizeof(RequestHeaderVersion1));
 
         auto& requestHeader =
-            *static_cast<RequestHeaderVersion1*>(requestBuffer.getData() + sizeof(FlairProtocol));
+            *static_cast<RequestHeaderVersion1*>(requestBuffer.getData());
         requestHeader.prefix.version = 1;
         requestHeader.prefix.toBigEndian();
         requestHeader.service = service;

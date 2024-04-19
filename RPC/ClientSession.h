@@ -128,7 +128,7 @@ class ClientSession {
      * \return
      *      This is be used to wait for and retrieve the reply to the RPC.
      */
-    OpaqueClientRPC sendRequest(Core::Buffer request);
+    OpaqueClientRPC sendRequest(Core::Buffer request, uint8_t is_flair=0);
 
     /**
      * If the socket has been disconnected, return a descriptive message.

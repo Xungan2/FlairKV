@@ -147,9 +147,7 @@ class MessageSocket {
      *      The data to send. This must be shorter than the maxMessageLength
      *      argument given to the constructor.
      */
-    void sendMessage(MessageId messageId, Core::Buffer contents);
-
-    void sendMessage(MessageId messageId, Core::Buffer contents, uint8_t is_flair);
+    void sendMessage(MessageId messageId, Core::Buffer contents, uint8_t is_flair=0);
 
     uint8_t is_udp;
 

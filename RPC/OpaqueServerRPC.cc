@@ -84,7 +84,7 @@ OpaqueServerRPC::sendReply()
 {
     std::shared_ptr<OpaqueServer::SocketWithHandler> socketRef = socket.lock();
     if (socketRef) {
-        socketRef->monitor.sendMessage(messageId, std::move(response));
+        socketRef->monitor.sendMessage(messageId, std::move(response), is_flair);
     } else {
         // During normal operation, this indicates that either the socket has
         // been disconnected or the reply has already been sent.

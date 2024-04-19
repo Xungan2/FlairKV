@@ -238,27 +238,6 @@ MessageSocket::close()
 }
 
 void
-MessageSocket::sendMessage(MessageId messageId, Core::Buffer contents)
-{
-    // Check the message length.
-    if (contents.getLength() > maxMessageLength) {
-        PANIC("Message of length %lu bytes is too long to send "
-              "(limit is %u bytes)",
-              contents.getLength(), maxMessageLength);
-    }
-
-    bool kick;
-    { // Place the message on the outbound queue.
-        std::lock_guard<Core::Mutex> lock(outboundQueueMutex);
-        kick = outboundQueue.empty();
-        outboundQueue.emplace_back(messageId, std::move(contents));
-    }
-    // Make sure the SendSocket is set up to call writable().
-    if (kick)
-        sendSocketMonitor.setEvents(EPOLLOUT|EPOLLONESHOT);
-}
-
-void
 MessageSocket::sendMessage(MessageId messageId, Core::Buffer contents, uint8_t is_flair)
 {
     // Check the message length.
