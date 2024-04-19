@@ -1,6 +1,8 @@
 #ifndef LOGCABIN_PROTOCOL_FLAIRPROTOCOL_H
 #define LOGCABIN_PROTOCOL_FLAIRPROTOCOL_H
 
+#include <cinttypes>
+#include <ostream>
 #include <cstdint>
 
 namespace LogCabin {
@@ -17,7 +19,7 @@ constexpr uint8_t OP_WRITE_FAILED = 100;
 constexpr uint8_t OP_READ_FAILED = 101;
 constexpr uint8_t OP_UNKNOWN = 255;
 
-constexpr uint32_t FLAIR_KEY_SIZE = 16;
+constexpr uint64_t FLAIR_KEY_SIZE = 16;
 
 struct FlairProtocol {
     uint8_t from_leader;

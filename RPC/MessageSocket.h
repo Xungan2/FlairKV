@@ -84,7 +84,7 @@ class MessageSocket {
          */
         virtual void handleReceivedMessage(MessageId messageId,
                                            Core::Buffer contents,
-                                           uint8_t is_flair) = 0;
+                                           uint8_t is_flair=0) = 0;
 
         /**
          * This method is overridden by a subclass and invoked when the socket
@@ -166,7 +166,7 @@ class MessageSocket {
      */
     struct SendSocket : public Event::File {
       public:
-        SendSocket(int fd, MessageSocket& messageSocket);
+        SendSocket(int fd, MessageSocket& messageSocket, uint8_t is_udp=0);
         ~SendSocket();
         void handleFileEvent(uint32_t events);
       private:
@@ -180,7 +180,7 @@ class MessageSocket {
      */
     struct ReceiveSocket : public Event::File {
       public:
-        ReceiveSocket(int fd, MessageSocket& messageSocket);
+        ReceiveSocket(int fd, MessageSocket& messageSocket, uint8_t is_udp=0);
         ~ReceiveSocket();
         void handleFileEvent(uint32_t events);
       private:
@@ -257,7 +257,7 @@ class MessageSocket {
         /// Move constructor.
         Outbound(Outbound&& other);
         /// Constructor.
-        Outbound(MessageId messageId, Core::Buffer message);
+        Outbound(MessageId messageId, Core::Buffer message, uint8_t is_flair=0);
         /// Move assignment.
         Outbound& operator=(Outbound&& other);
         /**

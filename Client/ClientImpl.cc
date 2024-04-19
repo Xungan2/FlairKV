@@ -122,7 +122,7 @@ treeCall(LeaderRPCBase& leaderRPC,
          const Protocol::Client::ReadOnlyTree::Request& request,
          Protocol::Client::ReadOnlyTree::Response& response,
          ClientImpl::TimePoint timeout,
-         std::string& realPath,
+         const std::string& realPath="",
          uint8_t is_flair=0)
 {
     VERBOSE("Calling read-only tree query with request:\n%s",
@@ -168,7 +168,7 @@ treeCall(LeaderRPCBase& leaderRPC,
          const Protocol::Client::ReadWriteTree::Request& request,
          Protocol::Client::ReadWriteTree::Response& response,
          ClientImpl::TimePoint timeout,
-         std::string& realPath,
+         const std::string& realPath="",
          uint8_t is_flair=0)
 {
     VERBOSE("Calling read-write tree command with request:\n%s",
@@ -704,7 +704,7 @@ ClientImpl::makeDirectory(const std::string& path,
     request.mutable_make_directory()->set_path(realPath);
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
-             request, response, timeout, realPath);
+             request, response, timeout);
     exactlyOnceRPCHelper.doneWithRPC(request.exactly_once());
     if (response.status() != Protocol::Client::Status::OK)
         return treeError(response);
@@ -728,7 +728,7 @@ ClientImpl::listDirectory(const std::string& path,
     request.mutable_list_directory()->set_path(realPath);
     Protocol::Client::ReadOnlyTree::Response response;
     treeCall(*leaderRPC,
-             request, response, timeout, realPath);
+             request, response, timeout);
     if (response.status() != Protocol::Client::Status::OK)
         return treeError(response);
     children = std::vector<std::string>(
@@ -754,7 +754,7 @@ ClientImpl::removeDirectory(const std::string& path,
     request.mutable_remove_directory()->set_path(realPath);
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
-             request, response, timeout, realPath);
+             request, response, timeout);
     exactlyOnceRPCHelper.doneWithRPC(request.exactly_once());
     if (response.status() != Protocol::Client::Status::OK)
         return treeError(response);
@@ -830,7 +830,7 @@ ClientImpl::removeFile(const std::string& path,
     request.mutable_remove_file()->set_path(realPath);
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
-             request, response, timeout, realPath);
+             request, response, timeout);
     exactlyOnceRPCHelper.doneWithRPC(request.exactly_once());
     if (response.status() != Protocol::Client::Status::OK)
         return treeError(response);

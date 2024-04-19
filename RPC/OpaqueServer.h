@@ -121,8 +121,8 @@ class OpaqueServer {
      */
     class MessageSocketHandler : public MessageSocket::Handler {
       public:
-        explicit MessageSocketHandler(OpaqueServer* server, uint8_t is_udp);
-        void handleReceivedMessage(MessageId messageId, Core::Buffer message, uint8_t is_flair);
+        explicit MessageSocketHandler(OpaqueServer* server, uint8_t is_udp=0);
+        void handleReceivedMessage(MessageId messageId, Core::Buffer message, uint8_t is_flair=0);
         void handleDisconnect();
 
         /**
@@ -172,7 +172,7 @@ class OpaqueServer {
          *      TCP connection with client for MessageSocket.
          */
         static std::shared_ptr<SocketWithHandler>
-        make(OpaqueServer* server, int fd, uint8_t is_udp);
+        make(OpaqueServer* server, int fd, uint8_t is_udp=0);
 
         ~SocketWithHandler();
         MessageSocketHandler handler;
@@ -180,7 +180,7 @@ class OpaqueServer {
         uint8_t is_udp;
 
       private:
-        SocketWithHandler(OpaqueServer* server, int fd, uint8_t is_udp);
+        SocketWithHandler(OpaqueServer* server, int fd, uint8_t is_udp=0);
     };
 
     /**

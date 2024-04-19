@@ -136,7 +136,7 @@ class ClientImpl {
                  const std::string& contents,
                  const Condition& condition,
                  TimePoint timeout,
-                 uint8_t is_flair);
+                 uint8_t is_flair=0);
 
     /// See Tree::read.
     Result read(const std::string& path,
@@ -144,7 +144,7 @@ class ClientImpl {
                 const Condition& condition,
                 TimePoint timeout,
                 std::string& contents,
-                uint8_t is_flair);
+                uint8_t is_flair=0);
 
     /// See Tree::removeFile.
     Result removeFile(const std::string& path,

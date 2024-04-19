@@ -510,13 +510,13 @@ class Tree {
      *       - TIMEOUT if timeout elapsed before the operation completed.
      */
     Result
-    write(const std::string& path, const std::string& contents, uint8_t is_flair);
+    write(const std::string& path, const std::string& contents, uint8_t is_flair=0);
 
     /**
      * Like write but throws exceptions upon errors.
      */
     void
-    writeEx(const std::string& path, const std::string& contents, uint8_t is_flair);
+    writeEx(const std::string& path, const std::string& contents, uint8_t is_flair=0);
 
     /**
      * Get the value of a file.
@@ -535,13 +535,13 @@ class Tree {
      *       - TIMEOUT if timeout elapsed before the operation completed.
      */
     Result
-    read(const std::string& path, std::string& contents, uint8_t is_flair) const;
+    read(const std::string& path, std::string& contents, uint8_t is_flair=0) const;
 
     /**
      * Like read but throws exceptions upon errors.
      */
     std::string
-    readEx(const std::string& path, uint8_t is_flair) const;
+    readEx(const std::string& path, uint8_t is_flair=0) const;
 
     /**
      * Make sure a file does not exist.

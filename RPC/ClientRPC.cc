@@ -38,7 +38,7 @@ ClientRPC::ClientRPC(std::shared_ptr<RPC::ClientSession> session,
                      uint8_t serviceSpecificErrorVersion,
                      uint16_t opCode,
                      const google::protobuf::Message& request,
-                     std::string& realPath,
+                     const std::string& realPath,
                      uint8_t is_flair)
     : service(service)
     , opCode(opCode)
@@ -103,6 +103,7 @@ ClientRPC::ClientRPC()
     : service(0)
     , opCode(0)
     , opaqueRPC()
+    , is_flair(0)
 {
 }
 
@@ -110,6 +111,7 @@ ClientRPC::ClientRPC(ClientRPC&& other)
     : service(other.service)
     , opCode(other.opCode)
     , opaqueRPC(std::move(other.opaqueRPC))
+    , is_flair(other.is_flair)
 {
 }
 
@@ -123,6 +125,7 @@ ClientRPC::operator=(ClientRPC&& other)
     service = other.service;
     opCode = other.opCode;
     opaqueRPC = std::move(other.opaqueRPC);
+    is_flair = other.is_flair;
     return *this;
 }
 

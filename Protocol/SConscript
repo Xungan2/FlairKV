@@ -1,6 +1,7 @@
 Import('env', 'object_files')
 
 src = [
+    "FlairProtocol.cc",
 ]
 object_files['Protocol'] = (env.StaticObject(src) +
                             env.Protobuf("Client.proto") +

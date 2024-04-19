@@ -54,7 +54,9 @@ LeaderRPCMock::Status
 LeaderRPCMock::call(OpCode opCode,
           const google::protobuf::Message& request,
           google::protobuf::Message& response,
-          TimePoint timeout)
+          TimePoint timeout,
+          const std::string& realPath,
+          uint8_t is_flair)
 {
     if (timeout < Clock::now())
         return Status::TIMEOUT;
@@ -73,7 +75,9 @@ LeaderRPCMock::Call::Call(LeaderRPCMock& leaderRPC)
 void
 LeaderRPCMock::Call::start(OpCode opCode,
                            const google::protobuf::Message& request,
-                           TimePoint timeout)
+                           TimePoint timeout,
+                           const std::string& realPath,
+                           uint8_t is_flair)
 {
     MessagePtr requestCopy(request.New());
     requestCopy->CopyFrom(request);

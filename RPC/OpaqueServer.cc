@@ -34,7 +34,7 @@ namespace RPC {
 
 ////////// OpaqueServer::MessageSocketHandler //////////
 
-OpaqueServer::MessageSocketHandler::MessageSocketHandler(OpaqueServer* server, uint8_t is_udp=0)
+OpaqueServer::MessageSocketHandler::MessageSocketHandler(OpaqueServer* server, uint8_t is_udp)
     : server(server)
     , self()
     , is_udp(is_udp)
@@ -102,7 +102,7 @@ OpaqueServer::MessageSocketHandler::handleDisconnect()
 ////////// OpaqueServer::SocketWithHandler //////////
 
 std::shared_ptr<OpaqueServer::SocketWithHandler>
-OpaqueServer::SocketWithHandler::make(OpaqueServer* server, int fd, uint8_t is_udp=0)
+OpaqueServer::SocketWithHandler::make(OpaqueServer* server, int fd, uint8_t is_udp)
 {
     std::shared_ptr<SocketWithHandler> socket(
         new SocketWithHandler(server, fd, is_udp));
@@ -113,7 +113,7 @@ OpaqueServer::SocketWithHandler::make(OpaqueServer* server, int fd, uint8_t is_u
 OpaqueServer::SocketWithHandler::SocketWithHandler(
         OpaqueServer* server,
         int fd,
-        uint8_t is_udp=0)
+        uint8_t is_udp)
     : is_udp(is_udp)
     , handler(server, is_udp)
     , monitor(handler, server->eventLoop, fd, server->maxMessageLength)

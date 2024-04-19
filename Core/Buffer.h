@@ -16,10 +16,15 @@
 #include <cinttypes>
 #include <cstdlib>
 
+#include "Protocol/FlairProtocol.h"
+
 #ifndef LOGCABIN_CORE_BUFFER_H
 #define LOGCABIN_CORE_BUFFER_H
 
 namespace LogCabin {
+
+using LogCabin::Protocol::FlairProtocol::FlairProtocol;
+
 namespace Core {
 
 /**

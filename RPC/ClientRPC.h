@@ -67,8 +67,8 @@ class ClientRPC {
               uint8_t serviceSpecificErrorVersion,
               uint16_t opCode,
               const google::protobuf::Message& request,
-              std::string& realPath,
-              uint8_t is_flair);
+              const std::string& realPath="",
+              uint8_t is_flair=0);
 
     /**
      * Default constructor. This doesn't create a valid RPC, but it is useful

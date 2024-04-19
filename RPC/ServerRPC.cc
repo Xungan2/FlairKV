@@ -51,7 +51,7 @@ ServerRPC::ServerRPC(OpaqueServerRPC opaqueRPC)
 
         memcpy(&flair_hdr, &FlairHeader, sizeof(FlairProtocol));
         this->opaqueRPC.request.removeFlair();
-        Protocol::FlairProtocol::fromBigEndian(flair_hdr);
+        LogCabin::Protocol::FlairProtocol::fromBigEndian(flair_hdr);
     }
 
     const Core::Buffer& request = this->opaqueRPC.request;
@@ -238,7 +238,7 @@ ServerRPC::handleStaleRPC()
 void
 ServerRPC::setFlairHeader()
 {
-    Protocol::FlairProtocol::toBigEndian(flair_hdr);
+    LogCabin::Protocol::FlairProtocol::toBigEndian(flair_hdr);
     opaqueRPC.response.setFlair(flair_hdr);
 }
 

@@ -60,7 +60,9 @@ class TreeLeaderRPC : public LeaderRPCBase {
     Status call(OpCode opCode,
               const google::protobuf::Message& request,
               google::protobuf::Message& response,
-              TimePoint timeout) {
+              TimePoint timeout,
+              const std::string& realPath="",
+              uint8_t is_flair=0) {
         std::lock_guard<std::recursive_mutex> lockGuard(mutex);
         if (opCode == OpCode::STATE_MACHINE_QUERY) {
             PC::StateMachineQuery::Request qrequest;
@@ -120,7 +122,9 @@ class TreeLeaderRPC : public LeaderRPCBase {
         }
         void start(OpCode _opCode,
                    const google::protobuf::Message& _request,
-                   TimePoint _timeout) {
+                   TimePoint _timeout,
+                   const std::string& realPath="",
+                   uint8_t is_flair=0) {
             opCode = _opCode;
             request.reset(_request.New());
             request->CopyFrom(_request);

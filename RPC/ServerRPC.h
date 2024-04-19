@@ -157,7 +157,10 @@ class ServerRPC {
      */
     void closeSession();
 
-    void isFlair() const;
+    uint8_t isFlair() const;
+    
+    void handleStaleRPC();
+    void setFlairHeader();
 
     FlairProtocol flair_hdr;
 
@@ -193,9 +196,6 @@ class ServerRPC {
     // ServerRPC is non-copyable.
     ServerRPC(const ServerRPC&) = delete;
     ServerRPC& operator=(const ServerRPC&) = delete;
-
-    void handleStaleRPC();
-    void setFlairHeader();
 
 }; // class ServerRPC
 

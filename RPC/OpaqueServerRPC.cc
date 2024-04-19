@@ -33,7 +33,7 @@ OpaqueServerRPC::OpaqueServerRPC(
         std::weak_ptr<OpaqueServer::SocketWithHandler> socket,
         MessageSocket::MessageId messageId,
         Core::Buffer request,
-        uint8_t is_flair=0)
+        uint8_t is_flair)
     : request(std::move(request))
     , response()
     , socket(socket)

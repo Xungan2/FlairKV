@@ -83,7 +83,7 @@ void
 LeaderRPC::Call::start(OpCode opCode,
                        const google::protobuf::Message& request,
                        TimePoint timeout,
-                       std::string& realPath,
+                       const std::string& realPath,
                        uint8_t is_flair)
 {
     // Save a reference to the leaderSession
@@ -187,8 +187,8 @@ LeaderRPC::call(OpCode opCode,
                 const google::protobuf::Message& request,
                 google::protobuf::Message& response,
                 TimePoint timeout,
-                std::string& realPath,
-                uint8_t is_flair=0)
+                const std::string& realPath,
+                uint8_t is_flair)
 {
     while (true) {
         Call c(*this);

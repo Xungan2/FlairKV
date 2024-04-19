@@ -16,9 +16,9 @@ fromBigEndian(FlairProtocol& flair_hdr)
 void 
 toBigEndian(FlairProtocol& flair_hdr)
 {
-    flair_hdr.seq = h64tobe(flair_hdr.seq);
-    flair_hdr.sid = h32tohe(flair_hdr.sid);
-    flair_hdr.log_idx = h64tobe(flair_hdr.log_idx);
+    flair_hdr.seq = htobe64(flair_hdr.seq);
+    flair_hdr.sid = htobe32(flair_hdr.sid);
+    flair_hdr.log_idx = htobe64(flair_hdr.log_idx);
 }
 
 }

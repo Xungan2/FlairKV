@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <cstdint>
 #include <memory>
 #include <gtest/gtest.h>
 #include <sys/epoll.h>
@@ -40,7 +41,7 @@ class MyMessageSocketHandler : public MessageSocket::Handler {
         , disconnected(false)
     {
     }
-    void handleReceivedMessage(MessageId messageId, Buffer message) {
+    void handleReceivedMessage(MessageId messageId, Buffer message, uint8_t is_flair) {
         lastReceivedId = messageId;
         lastReceivedPayload = std::move(message);
     }

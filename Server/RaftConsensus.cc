@@ -2226,7 +2226,7 @@ RaftConsensus::advanceCommitIndex()
     if (log->getEntry(newCommitIndex).term() != currentTerm)
         return;
     commitIndex = newCommitIndex;
-    flair_cflwrs = configuration->getConsistentFollowers(commitIndex);
+    flair_cflwrs = configuration->getConsistentFollowers(&Server::getMatchIndex, commitIndex);
     VERBOSE("New commitIndex: %lu", commitIndex);
     assert(commitIndex <= log->getLastLogIndex());
     stateChanged.notify_all();

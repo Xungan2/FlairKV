@@ -54,7 +54,7 @@ dupOrPanic(int oldfd)
 
 MessageSocket::SendSocket::SendSocket(int fd,
                                       MessageSocket& messageSocket,
-                                      uint8_t is_udp=0)
+                                      uint8_t is_udp)
     : Event::File(fd)
     , messageSocket(messageSocket)
 {
@@ -85,7 +85,7 @@ MessageSocket::SendSocket::handleFileEvent(uint32_t events)
 
 MessageSocket::ReceiveSocket::ReceiveSocket(int fd,
                                             MessageSocket& messageSocket,
-                                            uint8_t is_udp=0)
+                                            uint8_t is_udp)
     : Event::File(fd)
     , messageSocket(messageSocket)
 {
@@ -161,7 +161,7 @@ MessageSocket::Outbound::Outbound(Outbound&& other)
 
 MessageSocket::Outbound::Outbound(MessageId messageId,
                                   Core::Buffer message,
-                                  uint8_t is_flair=0)
+                                  uint8_t is_flair)
     : bytesSent(0)
     , header()
     , message(std::move(message))

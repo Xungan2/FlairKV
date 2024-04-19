@@ -14,6 +14,7 @@
  */
 
 #include <memory>
+#include <string.h>
 
 #include "Core/Buffer.h"
 #include "Protocol/FlairProtocol.h"

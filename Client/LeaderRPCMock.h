@@ -58,7 +58,9 @@ class LeaderRPCMock : public LeaderRPCBase {
     Status call(OpCode opCode,
                 const google::protobuf::Message& request,
                 google::protobuf::Message& response,
-                TimePoint timeout);
+                TimePoint timeout,
+                const std::string& realPath="",
+                uint8_t is_flair=0);
 
     /// See LeaderRPCBase::makeCall.
     std::unique_ptr<LeaderRPCBase::Call> makeCall();
@@ -70,7 +72,9 @@ class LeaderRPCMock : public LeaderRPCBase {
         explicit Call(LeaderRPCMock& leaderRPC);
         void start(OpCode opCode,
                    const google::protobuf::Message& request,
-                   TimePoint timeout);
+                   TimePoint timeout,
+                   const std::string& realPath="",
+                   uint8_t is_flair=0);
         void cancel();
         Status wait(google::protobuf::Message& response,
                     TimePoint timeout);

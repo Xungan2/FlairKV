@@ -157,7 +157,7 @@ class ClientSession {
     class MessageSocketHandler : public MessageSocket::Handler {
       public:
         explicit MessageSocketHandler(ClientSession& clientSession);
-        void handleReceivedMessage(MessageId messageId, Core::Buffer message, uint8_t is_flair);
+        void handleReceivedMessage(MessageId messageId, Core::Buffer message, uint8_t is_flair=0);
         void handleDisconnect();
         ClientSession& session;
     };
