@@ -96,7 +96,7 @@ Buffer::removeFlair()
         return;
 
     char* data_new = new char[length - sizeof(FlairProtocol)];
-    memcpy(data_new, data, length - sizeof(FlairProtocol));
+    memcpy(data_new, data + sizeof(FlairProtocol), length - sizeof(FlairProtocol));
 
     if (deleter != NULL)
         (*deleter)(data);

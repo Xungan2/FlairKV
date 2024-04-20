@@ -139,6 +139,8 @@ class OptionParser {
 int 
 main(int argc, char** argv)
 {
+    uint8_t is_flair = 1;
+
     OptionParser options(argc, argv);
     LogCabin::Client::Debug::setLogPolicy(
         LogCabin::Client::Debug::logPolicyFromString(
@@ -147,24 +149,24 @@ main(int argc, char** argv)
     Tree tree = cluster.getTree();
     tree.setTimeout(options.timeout);
     
-    tree.makeDirectoryEx("/KV_db");
-    tree.setWorkingDirectoryEx("/KV_db");
+    tree.makeDirectoryEx("/K");
+    tree.setWorkingDirectoryEx("/K");
     std::string working_dir = tree.getWorkingDirectory();
-    assert(working_dir == "/KV_db");
+    assert(working_dir == "/K");
 
-    tree.writeEx("0xAAAAAAAA", "233233", 1);
-    tree.writeEx("0xBBBBBBBB", "123456", 1);
+    tree.writeEx("AA", "233233", is_flair);
+    tree.writeEx("BB", "123456", is_flair);
     std::vector<std::string> key_list = std::move(tree.listDirectoryEx("./"));
     std::cout<<"Current keys:"<<std::endl;
     for (auto key: key_list) {
         std::cout<<key<<std::endl;
     }
 
-    std::string contents = tree.readEx("0xAAAAAAAA", 1);
+    std::string contents = tree.readEx("AA", is_flair);
     std::cout<<"Read content: "<<contents<<std::endl;
 
     tree.setWorkingDirectoryEx("/");
-    tree.removeDirectoryEx("/KV_db");
+    tree.removeDirectoryEx("/K");
 
     std::cout<<"Test ends"<<std::endl;
     return 0;

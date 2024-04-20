@@ -29,7 +29,7 @@ struct FlairProtocol {
     uint32_t sid;
     uint64_t log_idx;
     uint8_t cflwrs;
-};
+} __attribute__((packed));
 
 void fromBigEndian(FlairProtocol& flair_hdr);
 void toBigEndian(FlairProtocol& flair_hdr);

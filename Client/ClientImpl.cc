@@ -204,6 +204,10 @@ treeCall(LeaderRPCBase& leaderRPC,
                   "the read-write tree command or claims the request is "
                   "malformed. Request is: %s",
                   Core::ProtoBuf::dumpString(request).c_str());
+        case LeaderRPC::Status::STALE_FLAIR_WRITE:
+            response.set_status(Protocol::Client::Status::OK);
+            VERBOSE("The flair write request is stale");
+            break;
     }
 }
 

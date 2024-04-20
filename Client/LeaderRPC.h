@@ -87,6 +87,8 @@ class LeaderRPCBase {
          * support the opcode, or maybe the request arguments were invalid.
          */
         INVALID_REQUEST,
+
+        STALE_FLAIR_WRITE,
     };
 
     /**
@@ -153,6 +155,8 @@ class LeaderRPCBase {
              * support the opcode, or maybe the request arguments were invalid.
              */
             INVALID_REQUEST,
+
+            STALE_FLAIR_WRITE,
         };
 
         /**

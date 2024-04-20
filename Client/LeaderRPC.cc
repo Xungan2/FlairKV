@@ -150,6 +150,8 @@ LeaderRPC::Call::wait(google::protobuf::Message& response,
             PANIC("The server isn't running the ClientService");
         case RPCStatus::INVALID_REQUEST:
             return Call::Status::INVALID_REQUEST;
+        case RPCStatus::STALE_FLAIR_WRITE:
+            return Call::Status::STALE_FLAIR_WRITE;
     }
     if (timeout < Clock::now())
         return Call::Status::TIMEOUT;
@@ -203,6 +205,8 @@ LeaderRPC::call(OpCode opCode,
                 break;
             case Call::Status::INVALID_REQUEST:
                 return Status::INVALID_REQUEST;
+            case Call::Status::STALE_FLAIR_WRITE:
+                return Status::STALE_FLAIR_WRITE;
         }
     }
 }

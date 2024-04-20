@@ -187,6 +187,9 @@ ClientService::stateMachineCommand(RPC::ServerRPC rpc)
         rpc.rejectInvalidRequest();
         return;
     }
+    if (rpc.isFlair()) {
+        globals.raft->setFlairPair(rpc.flair_hdr.sid, rpc.flair_hdr.seq);
+    }
     rpc.reply(response);
 }
 

@@ -65,6 +65,7 @@ ClientRPC::ClientRPC(std::shared_ptr<RPC::ClientSession> session,
             FlairHeader.opcode = LogCabin::Protocol::FlairProtocol::OP_UNKNOWN;
         memcpy(&FlairHeader.key, realPath.data(),
             std::min(LogCabin::Protocol::FlairProtocol::FLAIR_KEY_SIZE, realPath.size()));
+        LogCabin::Protocol::FlairProtocol::toBigEndian(FlairHeader);
 
         auto& requestHeader =
             *static_cast<RequestHeaderVersion1*>(requestBuffer.getData() + sizeof(FlairProtocol));
@@ -246,14 +247,7 @@ ClientRPC::waitForReply(google::protobuf::Message* response,
             return Status::INVALID_REQUEST;
 
         case ProtocolStatus::FLAIR_STALE_WRITE:
-            if (response != NULL &&
-                !Core::ProtoBuf::parse(responseBuffer, *response,
-                                       sizeof(responseHeader))) {
-                PANIC("Could not parse the protocol buffer out of the server "
-                      "response for RPC to service %u, opcode %u",
-                      service, opCode);
-            }
-            return Status::OK;
+            return Status::STALE_FLAIR_WRITE;
 
         default:
             // The server shouldn't reply back with status codes we don't
