@@ -226,7 +226,11 @@ ClientService::stateMachineQuery(RPC::ServerRPC rpc)
         std::pair<Result, uint64_t> result = globals.raft->getLastCommitIndex();
         rpc.flair_hdr.from_leader = result.first == Result::SUCCESS ? 1:0;
         rpc.flair_hdr.opcode = Protocol::FlairProtocol::OP_READ_REPLY;
-        uint64_t logIndex = rpc.flair_hdr.log_idx;
+        uint64_t logIndex;
+        if (!rpc.flair_hdr.from_leader)
+            logIndex = rpc.flair_hdr.log_idx;
+        else
+            logIndex = result.second;
         globals.stateMachine->wait(logIndex);
         if (!globals.stateMachine->query(request, response))
         {
