@@ -15,6 +15,7 @@ constexpr uint8_t OP_WRITE_REQUEST = 0;
 constexpr uint8_t OP_READ_REQUEST = 1;
 constexpr uint8_t OP_WRITE_REPLY = 2;
 constexpr uint8_t OP_READ_REPLY = 3;
+constexpr uint8_t OP_READ_RETRY = 4;
 constexpr uint8_t OP_WRITE_FAILED = 100;
 constexpr uint8_t OP_READ_FAILED = 101;
 constexpr uint8_t OP_UNKNOWN = 255;
