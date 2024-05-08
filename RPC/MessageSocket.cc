@@ -57,6 +57,7 @@ MessageSocket::SendSocket::SendSocket(int fd,
                                       uint8_t is_udp)
     : Event::File(fd)
     , messageSocket(messageSocket)
+    , is_udp(is_udp)
 {
     if(!is_udp)
     {
@@ -88,6 +89,7 @@ MessageSocket::ReceiveSocket::ReceiveSocket(int fd,
                                             uint8_t is_udp)
     : Event::File(fd)
     , messageSocket(messageSocket)
+    , is_udp(is_udp)
 {
     if (!is_udp)
     {
@@ -111,7 +113,10 @@ MessageSocket::ReceiveSocket::~ReceiveSocket()
 void
 MessageSocket::ReceiveSocket::handleFileEvent(uint32_t events)
 {
-    messageSocket.readable();
+    if (!is_udp)
+        messageSocket.readable();
+    else
+        messageSocket.readable_udp();
 }
 
 ////////// MessageSocket::Header //////////
@@ -156,16 +161,25 @@ MessageSocket::Outbound::Outbound(Outbound&& other)
     : bytesSent(other.bytesSent)
     , header(other.header)
     , message(std::move(other.message))
+    , udp_addr(other.udp_addr)
+    , udp_addr_len(other.udp_addr_len)
 {
 }
 
 MessageSocket::Outbound::Outbound(MessageId messageId,
                                   Core::Buffer message,
-                                  uint8_t is_flair)
+                                  uint8_t is_flair,
+                                  sockaddr* udp_addr, 
+                                  socklen_t* udp_addr_len)
     : bytesSent(0)
     , header()
     , message(std::move(message))
 {
+    if (udp_addr)
+        self.udp_addr = *udp_addr;
+    if (udp_addr_len)
+        self.udp_addr_len = *udp_addr_len;
+
     header.is_flair = is_flair;
 
     header.fixed = 0xdaf4;
@@ -181,6 +195,9 @@ MessageSocket::Outbound::operator=(Outbound&& other)
     bytesSent = other.bytesSent;
     header = other.header;
     message = std::move(other.message);
+    udp_addr = other.udp_addr;
+    udp_addr_len = other.udp_addr_len;
+
     return *this;
 }
 
@@ -188,38 +205,21 @@ MessageSocket::Outbound::operator=(Outbound&& other)
 
 MessageSocket::MessageSocket(Handler& handler,
                              Event::Loop& eventLoop, int fd,
-                             uint32_t maxMessageLength)
+                             uint32_t maxMessageLength,
+                             uint8_t is_udp)
     : maxMessageLength(maxMessageLength)
     , handler(handler)
     , eventLoop(eventLoop)
     , inbound()
     , outboundQueueMutex()
     , outboundQueue()
-    , receiveSocket(dupOrPanic(fd), *this)
-    , sendSocket(fd, *this)
+    , receiveSocket(dupOrPanic(fd), *this, is_udp)
+    , sendSocket(fd, *this, is_udp)
     , receiveSocketMonitor(eventLoop, receiveSocket, EPOLLIN)
     , sendSocketMonitor(eventLoop, sendSocket, 0)
-    , is_udp(0)
+    , is_udp(is_udp)
 {
 }
-
-// MessageSocket::MessageSocket(Handler& handler,
-//                              Event::Loop& eventLoop, int fd,
-//                              uint32_t maxMessageLength,
-//                              uint8_t is_udp)
-//     : is_udp(is_udp)
-//     , maxMessageLength(maxMessageLength)
-//     , handler(handler)
-//     , eventLoop(eventLoop)
-//     , inbound()
-//     , outboundQueueMutex()
-//     , outboundQueue()
-//     , receiveSocket(dupOrPanic(fd), *this, is_udp)
-//     , sendSocket(fd, *this, is_udp)
-//     , receiveSocketMonitor(eventLoop, receiveSocket, EPOLLIN)
-//     , sendSocketMonitor(eventLoop, sendSocket, 0)
-// {
-// }
 
 MessageSocket::~MessageSocket()
 {
@@ -238,7 +238,8 @@ MessageSocket::close()
 }
 
 void
-MessageSocket::sendMessage(MessageId messageId, Core::Buffer contents, uint8_t is_flair)
+MessageSocket::sendMessage(MessageId messageId, Core::Buffer contents,
+                           uint8_t is_flair, sockaddr* udp_addr, socklen_t* udp_addr_len)
 {
     // Check the message length.
     if (contents.getLength() > maxMessageLength) {
@@ -251,7 +252,7 @@ MessageSocket::sendMessage(MessageId messageId, Core::Buffer contents, uint8_t i
     { // Place the message on the outbound queue.
         std::lock_guard<Core::Mutex> lock(outboundQueueMutex);
         kick = outboundQueue.empty();
-        outboundQueue.emplace_back(messageId, std::move(contents), is_flair);
+        outboundQueue.emplace_back(messageId, std::move(contents), is_flair, udp_addr, udp_addr_len);
     }
     // Make sure the SendSocket is set up to call writable().
     if (kick)
@@ -358,82 +359,80 @@ MessageSocket::read(void* buf, size_t maxBytes)
     PANIC("Error while reading from socket: %s", strerror(errno));
 }
 
-// void
-// MessageSocket::readable_udp()
-// {
-//     {
-//         ssize_t bytesRead = read_udp(&inbound.header, sizeof(Header), MSG_PEEK, &udp_addr, &udp_addr_len);
-//         if (bytesRead == -1) {
-//             disconnect();
-//             return;
-//         }
-//         if (bytesRead != sizeof(Header)) {
-//             WARNING("Disconnecting since message's header is broken");
-//             disconnect();
-//             return;
-//         }
-//         inbound.header.fromBigEndian();
-//         if (inbound.header.fixed != 0xdaf4) {
-//             WARNING("Disconnecting since message doesn't start with magic "
-//                     "0xdaf4 (first two bytes are 0x%02x)",
-//                     inbound.header.fixed);
-//             disconnect();
-//             return;
-//         }
-//         if (inbound.header.version != 1) {
-//             WARNING("Disconnecting since message uses version %u, but "
-//                     "this code only understands version 1",
-//                     inbound.header.version);
-//             disconnect();
-//             return;
-//         }
-//         if (sizeof(Header) + inbound.header.payloadLength > maxMessageLength) {
-//             WARNING("Disconnecting since message is too long to receive "
-//                     "(message is %u bytes, limit is %u bytes)",
-//                     inbound.header.payloadLength, maxMessageLength);
-//             disconnect();
-//             return;
-//         }
-//         inbound.message.setData(new char[inbound.header.payloadLength],
-//                                 inbound.header.payloadLength,
-//                                 Core::Buffer::deleteArrayFn<char>);
-//     }
+void
+MessageSocket::readable_udp()
+{
+    {
+        char tmp_buffer[10];
+        ssize_t bytesRead = read_udp(&inbound.header, sizeof(Header), MSG_PEEK, &handler.udp_addr, &handler.udp_addr_len);
+        if (bytesRead == -1) {
+            read_udp(tmp_buffer, 1, 0, NULL, NULL);
+            return;
+        }
+        if (bytesRead != sizeof(Header)) {
+            WARNING("Dropping since message's header is broken");
+            read_udp(tmp_buffer, 1, 0, NULL, NULL);
+            return;
+        }
+        inbound.header.fromBigEndian();
+        if (inbound.header.fixed != 0xdaf4) {
+            WARNING("Dropping since message doesn't start with magic "
+                    "0xdaf4 (first two bytes are 0x%02x)",
+                    inbound.header.fixed);
+            read_udp(tmp_buffer, 1, 0, NULL, NULL);
+            return;
+        }
+        if (inbound.header.version != 1) {
+            WARNING("Dropping since message uses version %u, but "
+                    "this code only understands version 1",
+                    inbound.header.version);
+            read_udp(tmp_buffer, 1, 0, NULL, NULL);
+            return;
+        }
+        if (sizeof(Header) + inbound.header.payloadLength > maxMessageLength) {
+            WARNING("Dropping since message is too long to receive "
+                    "(message is %u bytes, limit is %u bytes)",
+                    inbound.header.payloadLength, maxMessageLength);
+            read_udp(tmp_buffer, 1, 0, NULL, NULL);
+            return;
+        }
+        inbound.message.setData(new char[inbound.header.payloadLength],
+                                inbound.header.payloadLength,
+                                Core::Buffer::deleteArrayFn<char>);
+    }
 
-//     {
-//         char* tmp_buffer = new char[sizeof(Header) + inbound.header.payloadLength];
-//         ssize_t bytesRead = read_udp(tmp_buffer, maxMessageLength, 0, NULL, NULL);
-//         if (bytesRead == -1) {
-//             delete(tmp_buffer);
-//             disconnect();
-//             return;
-//         }
-//         if (bytesRead <= sizeof(Header)) {
-//             delete(tmp_buffer);
-//             WARNING("Disconnecting since message's payload is broken");
-//             disconnect();
-//             return;
-//         }
-//         memcpy(static_cast<char*>(inbound.message.getData()),
-//                tmp_buffer + sizeof(Header), bytesRead - sizeof(Header));
-//         delete(tmp_buffer);
-//     }
+    {
+        char* tmp_buffer = new char[sizeof(Header) + inbound.header.payloadLength];
+        ssize_t bytesRead = read_udp(tmp_buffer, maxMessageLength, 0, NULL, NULL);
+        if (bytesRead == -1) {
+            delete(tmp_buffer);
+            return;
+        }
+        if (bytesRead <= sizeof(Header)) {
+            delete(tmp_buffer);
+            WARNING("Dropping since message's payload is broken");
+            return;
+        }
+        memcpy(static_cast<char*>(inbound.message.getData()),
+               tmp_buffer + sizeof(Header), bytesRead - sizeof(Header));
+        delete(tmp_buffer);
+    }
 
-//     handler.handleReceivedMessage(inbound.header.messageId,
-//                                   std::move(inbound.message));
-// }
+    handler.handleReceivedMessage(inbound.header.messageId,
+                                  std::move(inbound.message),
+                                  inbound.header.is_flair);
+}
 
-// ssize_t
-// MessageSocket::read_udp(void* buf, size_t maxBytes, int flags, sockaddr* addr, socklen_t* addr_len)
-// {
-//     ssize_t actual = recvfrom(receiveSocket.fd, buf, maxBytes, flags, addr, addr_len);
-//     if (actual > 0)
-//         return actual;
-//     if (actual == 0 || // peer performed orderly shutdown.
-//         errno == ECONNRESET || errno == ETIMEDOUT || errno == EHOSTUNREACH) {
-//         return -1;
-//     }
-//     PANIC("Error while reading from socket: %s", strerror(errno));
-// }
+ssize_t
+MessageSocket::read_udp(void* buf, size_t maxBytes, int flags, sockaddr* addr, socklen_t* addr_len)
+{
+    ssize_t actual = recvfrom(receiveSocket.fd, buf, maxBytes, flags, addr, addr_len);
+    if (actual > 0)
+        return actual;
+    if (actual == 0)
+        return -1;
+    PANIC("Error while reading from socket: %s", strerror(errno));
+}
 
 void
 MessageSocket::writable()
@@ -464,6 +463,7 @@ MessageSocket::writable()
         iov[1].iov_base = outbound.message.getData();
         iov[1].iov_len = outbound.message.getLength();
 
+        if (!is_udp)
         { // Skip the parts of the iovec that have already been sent.
             size_t bytesSent = outbound.bytesSent;
             for (uint32_t i = 0; i < IOV_LEN; ++i) {
@@ -482,8 +482,8 @@ MessageSocket::writable()
         struct msghdr msg;
         memset(&msg, 0, sizeof(msg));
         if (is_udp) {
-            msg.msg_name = &udp_addr;
-            msg.msg_namelen = udp_addr_len;
+            msg.msg_name = &outbound.udp_addr;
+            msg.msg_namelen = outbound.udp_addr_len;
         }
         msg.msg_iov = iov;
         msg.msg_iovlen = IOV_LEN;
@@ -495,6 +495,10 @@ MessageSocket::writable()
                 // Wasn't able to send, try again later.
                 bytesSent = 0;
             } else if (errno == ECONNRESET || errno == EPIPE) {
+                if (is_udp)
+                    PANIC("Error while writing to socket %d: %s",
+                          sendSocket.fd, strerror(errno));
+
                 // Connection closed; disconnect this end.
                 // This must be the last line to touch this object, in case
                 // handleDisconnect() deletes this object.
@@ -507,23 +511,28 @@ MessageSocket::writable()
             }
         }
 
-        // Sent successfully.
-        outbound.bytesSent += size_t(bytesSent);
-        if (outbound.bytesSent != (sizeof(Header) +
-                                   outbound.message.getLength())) {
-            sendSocketMonitor.setEvents(EPOLLOUT|EPOLLONESHOT);
-            std::lock_guard<Core::Mutex> lockGuard(outboundQueueMutex);
-            outboundQueue.emplace_front(std::move(outbound));
-            return;
+        if (!is_udp)
+        {
+            // Sent successfully.
+            outbound.bytesSent += size_t(bytesSent);
+            if (outbound.bytesSent != (sizeof(Header) +
+                                    outbound.message.getLength())) {
+                sendSocketMonitor.setEvents(EPOLLOUT|EPOLLONESHOT);
+                std::lock_guard<Core::Mutex> lockGuard(outboundQueueMutex);
+                outboundQueue.emplace_front(std::move(outbound));
+                return;
+            }
         }
-
-        // if (bytesSent != (sizeof(Header) +
-        //                   outbound.message.getLength())) {
-        //     sendSocketMonitor.setEvents(EPOLLOUT|EPOLLONESHOT);
-        //     std::lock_guard<Core::Mutex> lockGuard(outboundQueueMutex);
-        //     outboundQueue.emplace_front(std::move(outbound));
-        //     return;
-        // }
+        else
+        {
+            if (bytesSent != (sizeof(Header) +
+                            outbound.message.getLength())) {
+                sendSocketMonitor.setEvents(EPOLLOUT|EPOLLONESHOT);
+                std::lock_guard<Core::Mutex> lockGuard(outboundQueueMutex);
+                outboundQueue.emplace_front(std::move(outbound));
+                return;
+            }
+        }
     }
 }
 

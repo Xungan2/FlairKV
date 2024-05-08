@@ -62,6 +62,7 @@ class Server {
      * See OpaqueServer::bind().
      */
     std::string bind(const Address& listenAddress);
+    std::string bind_udp(const Address& listenAddress);
 
     /**
      * Register a Service to receive RPCs from clients. If a service has

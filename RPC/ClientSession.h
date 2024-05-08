@@ -18,6 +18,9 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 #include "Core/Buffer.h"
 #include "Core/ConditionVariable.h"
@@ -162,6 +165,14 @@ class ClientSession {
         ClientSession& session;
     };
 
+    class MessageSocketHandler_udp : public MessageSocket::Handler {
+      public:
+        explicit MessageSocketHandler_udp(ClientSession& clientSession);
+        void handleReceivedMessage(MessageId messageId, Core::Buffer message, uint8_t is_flair=0);
+        void handleDisconnect();
+        ClientSession& session;
+    };
+
     /**
      * This contains an expected response for a OpaqueClientRPC object.
      * This is created when the OpaqueClientRPC is created; it is deleted when
@@ -288,6 +299,7 @@ class ClientSession {
      * Receives events from #messageSocket.
      */
     MessageSocketHandler messageSocketHandler;
+    MessageSocketHandler_udp messageSocketHandler_udp;
 
     /**
      * This is used to time out RPCs and sessions when the server is no longer
@@ -348,11 +360,15 @@ class ClientSession {
      * #errorMessage will be set.
      */
     std::unique_ptr<MessageSocket> messageSocket;
+    std::unique_ptr<MessageSocket> messageSocket_udp;
 
     /**
      * Registers timer with the event loop.
      */
     Event::Timer::Monitor timerMonitor;
+
+    sockaddr udp_addr;
+    socklen_t udp_addr_len;
 
     /**
      * Usually set to connect() but mocked out in some unit tests.

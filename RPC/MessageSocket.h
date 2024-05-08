@@ -18,6 +18,7 @@
 #include <vector>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
 
 #include "Core/Buffer.h"
 #include "Core/Mutex.h"
@@ -97,6 +98,9 @@ class MessageSocket {
          * it's already been called.
          */
         virtual void handleDisconnect() = 0;
+
+        sockaddr udp_addr;
+        socklen_t udp_addr_len;
     };
 
     /**
@@ -118,13 +122,8 @@ class MessageSocket {
     MessageSocket(Handler& handler,
                   Event::Loop& eventLoop,
                   int fd,
-                  uint32_t maxMessageLength);
-
-    // MessageSocket(Handler& handler,
-    //               Event::Loop& eventLoop,
-    //               int fd,
-    //               uint32_t maxMessageLength,
-    //               uint8_t is_udp);
+                  uint32_t maxMessageLength,
+                  uint8_t is_udp=0);
 
     /**
      * Destructor.
@@ -147,7 +146,8 @@ class MessageSocket {
      *      The data to send. This must be shorter than the maxMessageLength
      *      argument given to the constructor.
      */
-    void sendMessage(MessageId messageId, Core::Buffer contents, uint8_t is_flair=0);
+    void sendMessage(MessageId messageId, Core::Buffer contents,
+                     uint8_t is_flair=0, sockaddr* udp_addr=NULL, socklen_t* udp_addr_len=NULL);
 
     uint8_t is_udp;
 
@@ -169,6 +169,8 @@ class MessageSocket {
         void handleFileEvent(uint32_t events);
       private:
         MessageSocket& messageSocket;
+
+        uint8_t is_udp;
     };
 
     /**
@@ -183,6 +185,8 @@ class MessageSocket {
         void handleFileEvent(uint32_t events);
       private:
         MessageSocket& messageSocket;
+
+        uint8_t is_udp;
     };
 
     /**
@@ -255,7 +259,8 @@ class MessageSocket {
         /// Move constructor.
         Outbound(Outbound&& other);
         /// Constructor.
-        Outbound(MessageId messageId, Core::Buffer message, uint8_t is_flair=0);
+        Outbound(MessageId messageId, Core::Buffer message, 
+                 uint8_t is_flair=0, sockaddr* udp_addr=NULL, socklen_t* udp_addr_len=NULL);
         /// Move assignment.
         Outbound& operator=(Outbound&& other);
         /**
@@ -271,6 +276,9 @@ class MessageSocket {
          * The contents of the message (after the header).
          */
         Core::Buffer message;
+
+        sockaddr udp_addr;
+        socklen_t udp_addr_len;
     };
 
     /**
@@ -298,8 +306,8 @@ class MessageSocket {
      */
     ssize_t read(void* buf, size_t maxBytes);
 
-    // void readable_udp();
-    // ssize_t read_udp(void* buf, size_t maxBytes, int flags, sockaddr* addr, socklen_t* addr_len);
+    void readable_udp();
+    ssize_t read_udp(void* buf, size_t maxBytes, int flags, sockaddr* addr, socklen_t* addr_len);
 
     /**
      * Called when the socket may be written to without blocking.
@@ -370,9 +378,6 @@ class MessageSocket {
     // MessageSocket is non-copyable.
     MessageSocket(const MessageSocket&) = delete;
     MessageSocket& operator=(const MessageSocket&) = delete;
-
-    sockaddr udp_addr;
-    socklen_t udp_addr_len;
 
 }; // class MessageSocket
 

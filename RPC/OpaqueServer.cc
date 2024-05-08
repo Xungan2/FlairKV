@@ -47,47 +47,61 @@ OpaqueServer::MessageSocketHandler::handleReceivedMessage(
         Core::Buffer message,
         uint8_t is_flair)
 {
-    if (server == NULL)
-        return;
-    switch (messageId) {
-        case Protocol::Common::PING_MESSAGE_ID: {
-            std::shared_ptr<SocketWithHandler> socketRef = self.lock();
-            if (socketRef) { // expect so, since we're receiving messages
-                VERBOSE("Responding to ping");
-                socketRef->monitor.sendMessage(messageId,
-                                               Core::Buffer());
+    if (!is_udp)
+    {
+        if (server == NULL)
+            return;
+        switch (messageId) {
+            case Protocol::Common::PING_MESSAGE_ID: {
+                std::shared_ptr<SocketWithHandler> socketRef = self.lock();
+                if (socketRef) { // expect so, since we're receiving messages
+                    VERBOSE("Responding to ping");
+                    socketRef->monitor.sendMessage(messageId,
+                                                Core::Buffer());
+                }
+                break;
             }
-            break;
-        }
-        case Protocol::Common::VERSION_MESSAGE_ID: {
-            std::shared_ptr<SocketWithHandler> socketRef = self.lock();
-            if (socketRef) { // expect so, since we're receiving messages
-                VERBOSE("Responding to version request "
-                        "(this server supports max version %u)",
-                        MessageSocket::MAX_VERSION_SUPPORTED);
-                using Protocol::Common::VersionMessage::Response;
-                Response* response = new Response();
-                response->maxVersionSupported =
-                    htobe16(MessageSocket::MAX_VERSION_SUPPORTED);
-                socketRef->monitor.sendMessage(
-                    messageId,
-                    Core::Buffer(response, sizeof(*response),
-                                 Core::Buffer::deleteObjectFn<Response*>));
+            case Protocol::Common::VERSION_MESSAGE_ID: {
+                std::shared_ptr<SocketWithHandler> socketRef = self.lock();
+                if (socketRef) { // expect so, since we're receiving messages
+                    VERBOSE("Responding to version request "
+                            "(this server supports max version %u)",
+                            MessageSocket::MAX_VERSION_SUPPORTED);
+                    using Protocol::Common::VersionMessage::Response;
+                    Response* response = new Response();
+                    response->maxVersionSupported =
+                        htobe16(MessageSocket::MAX_VERSION_SUPPORTED);
+                    socketRef->monitor.sendMessage(
+                        messageId,
+                        Core::Buffer(response, sizeof(*response),
+                                    Core::Buffer::deleteObjectFn<Response*>));
+                }
+                break;
             }
-            break;
+            default: { // normal RPC request
+                VERBOSE("Handling RPC");
+                OpaqueServerRPC rpc(self, messageId, std::move(message), is_flair);
+                server->rpcHandler.handleRPC(std::move(rpc));
+            }
         }
-        default: { // normal RPC request
-            VERBOSE("Handling RPC");
-            OpaqueServerRPC rpc(self, messageId, std::move(message), is_flair);
-            server->rpcHandler.handleRPC(std::move(rpc));
-        }
+    }
+    else
+    {
+        if (server == NULL)
+            return;
+        VERBOSE("Handling RPC");
+        OpaqueServerRPC rpc(self, messageId, std::move(message), is_flair, &udp_addr, &udp_addr_len);
+        server->rpcHandler.handleRPC(std::move(rpc));
     }
 }
 
 void
 OpaqueServer::MessageSocketHandler::handleDisconnect()
 {
-    VERBOSE("Disconnected from client");
+    if (!is_udp)
+        VERBOSE("Disconnected from client");
+    else
+        VERBOSE("Disconnected (UDP)");
     std::shared_ptr<SocketWithHandler> socketRef = self.lock();
     if (server != NULL && socketRef) {
         // This drops the reference count on the socket. It may cause the
@@ -97,7 +111,6 @@ OpaqueServer::MessageSocketHandler::handleDisconnect()
         server = NULL;
     }
 }
-
 
 ////////// OpaqueServer::SocketWithHandler //////////
 
@@ -116,7 +129,7 @@ OpaqueServer::SocketWithHandler::SocketWithHandler(
         uint8_t is_udp)
     : is_udp(is_udp)
     , handler(server, is_udp)
-    , monitor(handler, server->eventLoop, fd, server->maxMessageLength)
+    , monitor(handler, server->eventLoop, fd, server->maxMessageLength, is_udp)
 {
 }
 
@@ -254,57 +267,48 @@ OpaqueServer::bind(const Address& listenAddress)
     return "";
 }
 
-// std::string 
-// OpaqueServer::bind_udp(const Address& listenAddress)
-// {
-//     using Core::StringUtil::format;
+std::string 
+OpaqueServer::bind_udp(const Address& listenAddress)
+{
+    using Core::StringUtil::format;
 
-//     if (!listenAddress.isValid()) {
-//         return format("Can't listen on invalid address: %s",
-//                       listenAddress.toString().c_str());
-//     }
+    if (!listenAddress.isValid()) {
+        return format("Can't listen on invalid address: %s",
+                      listenAddress.toString().c_str());
+    }
 
-//     int fd = socket(AF_INET, SOCK_DGRAM|SOCK_CLOEXEC, 0);
-//     if (fd < 0)
-//         PANIC("Could not create new UDP socket");
+    int fd = socket(AF_INET, SOCK_DGRAM|SOCK_CLOEXEC, 0);
+    if (fd < 0)
+        PANIC("Could not create new UDP socket");
 
-//     int flag = 1;
-//     int r = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
-//                        &flag, sizeof(flag));
-//     if (r < 0) {
-//         PANIC("Could not set SO_REUSEADDR on socket: %s",
-//               strerror(errno));
-//     }
+    int flag = 1;
+    int r = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
+                       &flag, sizeof(flag));
+    if (r < 0) {
+        PANIC("Could not set SO_REUSEADDR on socket: %s",
+              strerror(errno));
+    }
 
 
-//     r = ::bind(fd, listenAddress.getSockAddr(),
-//                    listenAddress.getSockAddrLen());
-//     if (r != 0) {
-//         std::string msg =
-//             format("Could not bind to address %s: %s%s",
-//                    listenAddress.toString().c_str(),
-//                    strerror(errno),
-//                    errno == EINVAL ? " (is the port in use?)" : "");
-//         r = close(fd);
-//         if (r != 0) {
-//             WARNING("Could not close socket that failed to bind: %s",
-//                     strerror(errno));
-//         }
-//         return msg;
-//     }
+    r = ::bind(fd, listenAddress.getSockAddr(),
+                   listenAddress.getSockAddrLen());
+    if (r != 0) {
+        std::string msg =
+            format("Could not bind to address %s: %s%s",
+                   listenAddress.toString().c_str(),
+                   strerror(errno),
+                   errno == EINVAL ? " (is the port in use?)" : "");
+        r = close(fd);
+        if (r != 0) {
+            WARNING("Could not close socket that failed to bind: %s",
+                    strerror(errno));
+        }
+        return msg;
+    }
 
-//     // Why 128? No clue. It's what libevent was setting it to.
-//     r = listen(fd, 128);
-//     if (r != 0) {
-//         PANIC("Could not invoke listen() on address %s: %s",
-//               listenAddress.toString().c_str(),
-//               strerror(errno));
-//     }
-
-//     std::lock_guard<Core::Mutex> lock(boundListenersMutex);
-//     boundListeners.emplace_back(*this, fd);
-//     return "";
-// }
+    sockets.insert(SocketWithHandler::make(this, fd));
+    return "";
+}
 
 } // namespace LogCabin::RPC
 } // namespace LogCabin

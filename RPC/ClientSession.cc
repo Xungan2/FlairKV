@@ -153,6 +153,73 @@ ClientSession::MessageSocketHandler::handleDisconnect()
     }
 }
 
+
+ClientSession::MessageSocketHandler_udp::MessageSocketHandler_udp(
+        ClientSession& session)
+    : session(session)
+{
+}
+
+void
+ClientSession::MessageSocketHandler_udp::handleReceivedMessage(
+        MessageId messageId,
+        Core::Buffer message,
+        uint8_t is_flair)
+{
+    std::lock_guard<std::mutex> mutexGuard(session.mutex);
+
+    auto it = session.responses.find(messageId);
+    if (it == session.responses.end()) {
+        VERBOSE("Received an unexpected response with message ID %lu. "
+                "This can happen for a number of reasons and is no cause "
+                "for alarm. For example, this happens if the RPC was "
+                "cancelled before its response arrived.",
+                messageId);
+        return;
+    }
+    Response& response = *it->second;
+    if (response.status == Response::HAS_REPLY) {
+        WARNING("Received a second response from the server for "
+                "message ID %lu. This indicates that either the client or "
+                "server is assigning message IDs incorrectly, or "
+                "the server is misbehaving. Dropped this response.",
+                messageId);
+        return;
+    }
+
+    // Book-keeping for timeouts
+    --session.numActiveRPCs;
+    if (session.numActiveRPCs == 0)
+        session.timer.deschedule();
+    else
+        session.timer.schedule(session.PING_TIMEOUT_NS);
+
+    // Fill in the response
+    response.status = Response::HAS_REPLY;
+    response.reply = std::move(message);
+    response.ready.notify_all();
+}
+
+void
+ClientSession::MessageSocketHandler_udp::handleDisconnect()
+{
+    VERBOSE("Disconnected from server %s",
+            session.address.toString().c_str());
+    std::lock_guard<std::mutex> mutexGuard(session.mutex);
+    if (session.errorMessage.empty()) {
+        // Fail all current and future RPCs.
+        session.errorMessage = ("Disconnected from server " +
+                                session.address.toString());
+        // Notify any waiting RPCs.
+        for (auto it = session.responses.begin();
+             it != session.responses.end();
+             ++it) {
+            Response* response = it->second;
+            response->ready.notify_all();
+        }
+    }
+}
+
 ////////// ClientSession::Response //////////
 
 ClientSession::Response::Response()
@@ -230,6 +297,7 @@ ClientSession::ClientSession(Event::Loop& eventLoop,
     , eventLoop(eventLoop)
     , address(address)
     , messageSocketHandler(*this)
+    , messageSocketHandler_udp(*this)
     , timer(*this)
     , mutex()
     , nextMessageId(0)
@@ -238,98 +306,122 @@ ClientSession::ClientSession(Event::Loop& eventLoop,
     , numActiveRPCs(0)
     , activePing(false)
     , messageSocket()
+    , messageSocket_udp()
     , timerMonitor(eventLoop, timer)
 {
-    // Be careful not to pass a sockaddr of length 0 to conect(). Although it
-    // should return -1 EINVAL, on some systems (e.g., RHEL6) it instead
-    // returns OK but leaves the socket unconnected! See
-    // https://github.com/logcabin/logcabin/issues/66 for more details.
-    if (!address.isValid()) {
-        errorMessage = "Failed to resolve " + address.toString();
-        return;
-    }
-
-    // Some TCP connection timeouts appear to be ridiculously long in the wild.
-    // Limit this to 1 second by default, after which you'd most likely want to
-    // retry.
-    timeout = std::min(timeout,
-                       (Clock::now() +
-                        std::chrono::milliseconds(
-                            config.read<uint64_t>(
-                                "tcpConnectTimeoutMilliseconds", 1000))));
-
-    // Setting NONBLOCK here makes connect return right away with EINPROGRESS.
-    // Then we can monitor the fd until it's writable to know when it's done,
-    // along with a timeout. See man page for connect under EINPROGRESS.
-    int fd = socket(AF_INET, SOCK_STREAM|SOCK_NONBLOCK, 0);
-    if (fd < 0) {
-        errorMessage = "Failed to create socket";
-        return;
-    }
-
-    // According to the spec, connect() could return OK done here, but in
-    // practice it'll return EINPROGRESS.
-    bool waiting = false;
-    int r = connectFn(fd,
-                      address.getSockAddr(),
-                      address.getSockAddrLen());
-    if (r != 0) {
-        switch (errno) {
-            case EINPROGRESS:
-                waiting = true;
-                break;
-            default:
-                errorMessage = Core::StringUtil::format(
-                    "Failed to connect socket to %s: %s",
-                    address.toString().c_str(),
-                    strerror(errno));
-                close(fd);
-                return;
+    // Set up the TCP socket
+    {
+        // Be careful not to pass a sockaddr of length 0 to conect(). Although it
+        // should return -1 EINVAL, on some systems (e.g., RHEL6) it instead
+        // returns OK but leaves the socket unconnected! See
+        // https://github.com/logcabin/logcabin/issues/66 for more details.
+        if (!address.isValid()) {
+            errorMessage = "Failed to resolve " + address.toString();
+            return;
         }
-    }
 
-    if (waiting) {
-        // This is a pretty heavy-weight method of watching a file descriptor
-        // for a given period of time. On the other hand, it's only a few lines
-        // of code with the LogCabin::Event classes, so it's easier for now.
-        Event::Loop loop;
-        FileNotifier fileNotifier(loop, fd, Event::File::CALLER_CLOSES_FD);
-        TimerNotifier timerNotifier(loop);
-        Event::File::Monitor fileMonitor(loop, fileNotifier, EPOLLOUT);
-        Event::Timer::Monitor timerMonitor(loop, timerNotifier);
-        timerNotifier.scheduleAbsolute(timeout);
-        while (true) {
-            loop.runForever();
-            if (fileNotifier.count > 0) {
-                int error = 0;
-                socklen_t errorlen = sizeof(error);
-                r = getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &errorlen);
-                if (r != 0)
-                    PANIC("getsockopt failed: %s", strerror(errno));
-                if (error != 0) {
+        // Some TCP connection timeouts appear to be ridiculously long in the wild.
+        // Limit this to 1 second by default, after which you'd most likely want to
+        // retry.
+        timeout = std::min(timeout,
+                        (Clock::now() +
+                            std::chrono::milliseconds(
+                                config.read<uint64_t>(
+                                    "tcpConnectTimeoutMilliseconds", 1000))));
+
+        // Setting NONBLOCK here makes connect return right away with EINPROGRESS.
+        // Then we can monitor the fd until it's writable to know when it's done,
+        // along with a timeout. See man page for connect under EINPROGRESS.
+        int fd = socket(AF_INET, SOCK_STREAM|SOCK_NONBLOCK, 0);
+        if (fd < 0) {
+            errorMessage = "Failed to create socket";
+            return;
+        }
+
+        // According to the spec, connect() could return OK done here, but in
+        // practice it'll return EINPROGRESS.
+        bool waiting = false;
+        int r = connectFn(fd,
+                        address.getSockAddr(),
+                        address.getSockAddrLen());
+        if (r != 0) {
+            switch (errno) {
+                case EINPROGRESS:
+                    waiting = true;
+                    break;
+                default:
                     errorMessage = Core::StringUtil::format(
                         "Failed to connect socket to %s: %s",
                         address.toString().c_str(),
-                        strerror(error));
-                }
-                break;
+                        strerror(errno));
+                    close(fd);
+                    return;
             }
-            if (Clock::now() > timeout) {
-                errorMessage = Core::StringUtil::format(
-                    "Failed to connect socket to %s: timeout expired",
-                    address.toString().c_str());
-                break;
-            }
-            WARNING("spurious exit from event loop?");
         }
-    }
-    if (!errorMessage.empty()) {
-        close(fd);
-        return;
+
+        if (waiting) {
+            // This is a pretty heavy-weight method of watching a file descriptor
+            // for a given period of time. On the other hand, it's only a few lines
+            // of code with the LogCabin::Event classes, so it's easier for now.
+            Event::Loop loop;
+            FileNotifier fileNotifier(loop, fd, Event::File::CALLER_CLOSES_FD);
+            TimerNotifier timerNotifier(loop);
+            Event::File::Monitor fileMonitor(loop, fileNotifier, EPOLLOUT);
+            Event::Timer::Monitor timerMonitor(loop, timerNotifier);
+            timerNotifier.scheduleAbsolute(timeout);
+            while (true) {
+                loop.runForever();
+                if (fileNotifier.count > 0) {
+                    int error = 0;
+                    socklen_t errorlen = sizeof(error);
+                    r = getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &errorlen);
+                    if (r != 0)
+                        PANIC("getsockopt failed: %s", strerror(errno));
+                    if (error != 0) {
+                        errorMessage = Core::StringUtil::format(
+                            "Failed to connect socket to %s: %s",
+                            address.toString().c_str(),
+                            strerror(error));
+                    }
+                    break;
+                }
+                if (Clock::now() > timeout) {
+                    errorMessage = Core::StringUtil::format(
+                        "Failed to connect socket to %s: timeout expired",
+                        address.toString().c_str());
+                    break;
+                }
+                WARNING("spurious exit from event loop?");
+            }
+        }
+        if (!errorMessage.empty()) {
+            close(fd);
+            return;
+        }
+
+        messageSocket.reset(new MessageSocket(
+            messageSocketHandler, eventLoop, fd, maxMessageLength));
     }
 
-    messageSocket.reset(new MessageSocket(
-        messageSocketHandler, eventLoop, fd, maxMessageLength));
+    // Set up the UDP socket
+    {
+        if (!address.isValid()) {
+            errorMessage = "Failed to resolve " + address.toString();
+            return;
+        }
+
+        int fd = socket(AF_INET, DGRAM|SOCK_NONBLOCK, 0);
+        if (fd < 0) {
+            errorMessage = "Failed to create UDP socket";
+            return;
+        }
+
+        udp_addr = *address.getSockAddr();
+        udp_addr_len = address.getSockAddrLen();
+
+        messageSocket_udp.reset(new MessageSocket(
+            messageSocketHandler_udp, eventLoop, fd, maxMessageLength, 1));
+    }
 }
 
 std::shared_ptr<ClientSession>
@@ -371,6 +463,7 @@ ClientSession::~ClientSession()
 {
     timerMonitor.disableForever();
     messageSocket.reset();
+    messageSocket_udp.reset();
     for (auto it = responses.begin(); it != responses.end(); ++it)
         delete it->second;
 }
@@ -378,28 +471,58 @@ ClientSession::~ClientSession()
 OpaqueClientRPC
 ClientSession::sendRequest(Core::Buffer request, uint8_t is_flair)
 {
-    MessageSocket::MessageId messageId;
+    if (!is_flair)
     {
-        std::lock_guard<std::mutex> mutexGuard(mutex);
-        messageId = nextMessageId;
-        ++nextMessageId;
-        responses[messageId] = new Response();
+        MessageSocket::MessageId messageId;
+        {
+            std::lock_guard<std::mutex> mutexGuard(mutex);
+            messageId = nextMessageId;
+            ++nextMessageId;
+            responses[messageId] = new Response();
 
-        ++numActiveRPCs;
-        if (numActiveRPCs == 1) {
-            // activePing's value was undefined while numActiveRPCs = 0
-            activePing = false;
-            timer.schedule(PING_TIMEOUT_NS);
+            ++numActiveRPCs;
+            if (numActiveRPCs == 1) {
+                // activePing's value was undefined while numActiveRPCs = 0
+                activePing = false;
+                timer.schedule(PING_TIMEOUT_NS);
+            }
         }
+        // Release the mutex before sending so that receives can be processed
+        // simultaneously with sends.
+        if (messageSocket)
+            messageSocket->sendMessage(messageId, std::move(request));
+        OpaqueClientRPC rpc;
+        rpc.session = self.lock();
+        rpc.responseToken = messageId;
+        return rpc;
     }
-    // Release the mutex before sending so that receives can be processed
-    // simultaneously with sends.
-    if (messageSocket)
-        messageSocket->sendMessage(messageId, std::move(request), is_flair);
-    OpaqueClientRPC rpc;
-    rpc.session = self.lock();
-    rpc.responseToken = messageId;
-    return rpc;
+    else
+    {
+        MessageSocket::MessageId messageId;
+        {
+            std::lock_guard<std::mutex> mutexGuard(mutex);
+            messageId = nextMessageId;
+            ++nextMessageId;
+            responses[messageId] = new Response();
+
+            ++numActiveRPCs;
+            if (numActiveRPCs == 1) {
+                // activePing's value was undefined while numActiveRPCs = 0
+                activePing = false;
+                timer.schedule(PING_TIMEOUT_NS);
+            }
+        }
+
+        if (messageSocket_udp)
+            messageSocket_udp->sendMessage(
+                messageId, std::move(request),
+                is_flair, &udp_addr, &udp_addr_len
+            );
+        OpaqueClientRPC rpc;
+        rpc.session = self.lock();
+        rpc.responseToken = messageId;
+        return rpc;
+    }
 }
 
 std::string

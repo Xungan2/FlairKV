@@ -162,14 +162,26 @@ Globals::init()
              ++it) {
             RPC::Address address(*it, Protocol::Common::DEFAULT_PORT);
             address.refresh(RPC::Address::TimePoint::max());
-            std::string error = rpcServer->bind(address);
-            if (!error.empty()) {
-                EXIT("Could not listen on address %s: %s",
-                     address.toString().c_str(),
-                     error.c_str());
+            {
+                std::string error = rpcServer->bind(address);
+                if (!error.empty()) {
+                    EXIT("Could not listen on address %s: %s",
+                         address.toString().c_str(),
+                         error.c_str());
+                }
+                NOTICE("Serving on %s",
+                       address.toString().c_str());
             }
-            NOTICE("Serving on %s",
-                   address.toString().c_str());
+            {
+                std::string error = rpcServer->bind_udp(address);
+                if (!error.empty()) {
+                    EXIT("Could not listen on address %s: %s (UDP)",
+                         address.toString().c_str(),
+                         error.c_str());
+                }
+                NOTICE("Serving on %s (UDP)",
+                       address.toString().c_str());
+            }
         }
         raft->serverAddresses = listenAddressesStr;
         raft->init();

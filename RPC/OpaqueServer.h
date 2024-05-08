@@ -109,7 +109,7 @@ class OpaqueServer {
      *      address; the empty string otherwise.
      */
     std::string bind(const Address& listenAddress);
-    // std::string bind_udp(const Address& listenAddress);
+    std::string bind_udp(const Address& listenAddress);
 
   private:
 

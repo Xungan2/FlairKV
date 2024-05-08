@@ -14,6 +14,8 @@
  */
 
 #include <memory>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 #include "Core/Buffer.h"
 #include "RPC/MessageSocket.h"
@@ -47,7 +49,9 @@ class OpaqueServerRPC {
             std::weak_ptr<OpaqueServer::SocketWithHandler> socket,
             MessageSocket::MessageId messageId,
             Core::Buffer request,
-            uint8_t is_flair=0);
+            uint8_t is_flair=0,
+            sockaddr* udp_addr=NULL,
+            socklen_t* udp_addr_len=NULL);
 
   public:
     /**
@@ -97,6 +101,9 @@ class OpaqueServerRPC {
     Core::Buffer response;
 
     uint8_t is_flair;
+
+    sockaddr udp_addr;
+    socklen_t udp_addr_len;
 
   private:
     /**

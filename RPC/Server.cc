@@ -75,6 +75,12 @@ Server::bind(const Address& listenAddress)
     return opaqueServer.bind(listenAddress);
 }
 
+std::string
+Server::bind_udp(const Address& listenAddress)
+{
+    return opaqueServer.bind_udp(listenAddress);
+}
+
 void
 Server::registerService(uint16_t serviceId,
                         std::shared_ptr<Service> service,

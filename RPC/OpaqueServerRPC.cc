@@ -13,6 +13,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+
 #include "RPC/OpaqueServerRPC.h"
 #include "Protocol/FlairProtocol.h"
 
@@ -33,7 +36,9 @@ OpaqueServerRPC::OpaqueServerRPC(
         std::weak_ptr<OpaqueServer::SocketWithHandler> socket,
         MessageSocket::MessageId messageId,
         Core::Buffer request,
-        uint8_t is_flair)
+        uint8_t is_flair,
+        sockaddr* udp_addr,
+        socklen_t* udp_addr_len)
     : request(std::move(request))
     , response()
     , socket(socket)
@@ -41,6 +46,10 @@ OpaqueServerRPC::OpaqueServerRPC(
     , responseTarget(NULL)
     , is_flair(is_flair)
 {
+    if (udp_addr)
+        self.udp_addr = *udp_addr;
+    if (udp_addr_len)
+        self.udp_addr_len = *udp_addr_len;
 }
 
 OpaqueServerRPC::OpaqueServerRPC(OpaqueServerRPC&& other)
@@ -49,7 +58,9 @@ OpaqueServerRPC::OpaqueServerRPC(OpaqueServerRPC&& other)
     , socket(std::move(other.socket))
     , messageId(std::move(other.messageId))
     , responseTarget(std::move(other.responseTarget))
-    , is_flair(std::move(other.is_flair))
+    , is_flair(other.is_flair)
+    , udp_addr(other.udp_addr)
+    , udp_addr_len(other.udp_addr_len)
 {
 }
 
@@ -65,7 +76,9 @@ OpaqueServerRPC::operator=(OpaqueServerRPC&& other)
     socket = std::move(other.socket);
     messageId = std::move(other.messageId);
     responseTarget = std::move(other.responseTarget);
-    is_flair = std::move(other.is_flair);
+    is_flair = other.is_flair;
+    udp_addr = other.udp_addr;
+    udp_addr_len = other.udp_addr_len;
     return *this;
 }
 
@@ -84,7 +97,10 @@ OpaqueServerRPC::sendReply()
 {
     std::shared_ptr<OpaqueServer::SocketWithHandler> socketRef = socket.lock();
     if (socketRef) {
-        socketRef->monitor.sendMessage(messageId, std::move(response), is_flair);
+        if (!is_flair)
+            socketRef->monitor.sendMessage(messageId, std::move(response));
+        else
+            socketRef->monitor.sendMessage(messageId, std::move(response), is_flair, &udp_addr, &udp_addr_len);
     } else {
         // During normal operation, this indicates that either the socket has
         // been disconnected or the reply has already been sent.
