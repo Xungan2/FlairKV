@@ -168,7 +168,6 @@ MessageSocket::Outbound::Outbound(Outbound&& other)
 
 MessageSocket::Outbound::Outbound(MessageId messageId,
                                   Core::Buffer message,
-                                  uint8_t is_flair,
                                   sockaddr* udp_addr, 
                                   socklen_t* udp_addr_len)
     : bytesSent(0)
@@ -176,11 +175,9 @@ MessageSocket::Outbound::Outbound(MessageId messageId,
     , message(std::move(message))
 {
     if (udp_addr)
-        self.udp_addr = *udp_addr;
+        this->udp_addr = *udp_addr;
     if (udp_addr_len)
-        self.udp_addr_len = *udp_addr_len;
-
-    header.is_flair = is_flair;
+        this->udp_addr_len = *udp_addr_len;
 
     header.fixed = 0xdaf4;
     header.version = 1;
@@ -239,7 +236,7 @@ MessageSocket::close()
 
 void
 MessageSocket::sendMessage(MessageId messageId, Core::Buffer contents,
-                           uint8_t is_flair, sockaddr* udp_addr, socklen_t* udp_addr_len)
+                           sockaddr* udp_addr, socklen_t* udp_addr_len)
 {
     // Check the message length.
     if (contents.getLength() > maxMessageLength) {
@@ -252,7 +249,7 @@ MessageSocket::sendMessage(MessageId messageId, Core::Buffer contents,
     { // Place the message on the outbound queue.
         std::lock_guard<Core::Mutex> lock(outboundQueueMutex);
         kick = outboundQueue.empty();
-        outboundQueue.emplace_back(messageId, std::move(contents), is_flair, udp_addr, udp_addr_len);
+        outboundQueue.emplace_back(messageId, std::move(contents), udp_addr, udp_addr_len);
     }
     // Make sure the SendSocket is set up to call writable().
     if (kick)
@@ -336,8 +333,7 @@ MessageSocket::readable()
                 return;
             }
             handler.handleReceivedMessage(inbound.header.messageId,
-                                          std::move(inbound.message),
-                                          inbound.header.is_flair);
+                                          std::move(inbound.message));
             // Transition to receiving header
             inbound.bytesRead = 0;
         }
@@ -420,7 +416,7 @@ MessageSocket::readable_udp()
 
     handler.handleReceivedMessage(inbound.header.messageId,
                                   std::move(inbound.message),
-                                  inbound.header.is_flair);
+                                  1);
 }
 
 ssize_t

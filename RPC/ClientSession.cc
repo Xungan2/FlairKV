@@ -410,7 +410,7 @@ ClientSession::ClientSession(Event::Loop& eventLoop,
             return;
         }
 
-        int fd = socket(AF_INET, DGRAM|SOCK_NONBLOCK, 0);
+        int fd = socket(AF_INET, SOCK_DGRAM|SOCK_NONBLOCK, 0);
         if (fd < 0) {
             errorMessage = "Failed to create UDP socket";
             return;
@@ -516,7 +516,7 @@ ClientSession::sendRequest(Core::Buffer request, uint8_t is_flair)
         if (messageSocket_udp)
             messageSocket_udp->sendMessage(
                 messageId, std::move(request),
-                is_flair, &udp_addr, &udp_addr_len
+                &udp_addr, &udp_addr_len
             );
         OpaqueClientRPC rpc;
         rpc.session = self.lock();

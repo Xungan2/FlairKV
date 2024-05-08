@@ -147,7 +147,7 @@ class MessageSocket {
      *      argument given to the constructor.
      */
     void sendMessage(MessageId messageId, Core::Buffer contents,
-                     uint8_t is_flair=0, sockaddr* udp_addr=NULL, socklen_t* udp_addr_len=NULL);
+                     sockaddr* udp_addr=NULL, socklen_t* udp_addr_len=NULL);
 
     uint8_t is_udp;
 
@@ -204,8 +204,6 @@ class MessageSocket {
          */
         void toBigEndian();
 
-        uint8_t is_flair;
-
         /**
          * The value 0xdaf4 encoded in big endian.
          */
@@ -260,7 +258,7 @@ class MessageSocket {
         Outbound(Outbound&& other);
         /// Constructor.
         Outbound(MessageId messageId, Core::Buffer message, 
-                 uint8_t is_flair=0, sockaddr* udp_addr=NULL, socklen_t* udp_addr_len=NULL);
+                 sockaddr* udp_addr=NULL, socklen_t* udp_addr_len=NULL);
         /// Move assignment.
         Outbound& operator=(Outbound&& other);
         /**

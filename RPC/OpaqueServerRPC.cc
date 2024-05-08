@@ -47,9 +47,9 @@ OpaqueServerRPC::OpaqueServerRPC(
     , is_flair(is_flair)
 {
     if (udp_addr)
-        self.udp_addr = *udp_addr;
+        this->udp_addr = *udp_addr;
     if (udp_addr_len)
-        self.udp_addr_len = *udp_addr_len;
+        this->udp_addr_len = *udp_addr_len;
 }
 
 OpaqueServerRPC::OpaqueServerRPC(OpaqueServerRPC&& other)
@@ -100,7 +100,7 @@ OpaqueServerRPC::sendReply()
         if (!is_flair)
             socketRef->monitor.sendMessage(messageId, std::move(response));
         else
-            socketRef->monitor.sendMessage(messageId, std::move(response), is_flair, &udp_addr, &udp_addr_len);
+            socketRef->monitor.sendMessage(messageId, std::move(response), &udp_addr, &udp_addr_len);
     } else {
         // During normal operation, this indicates that either the socket has
         // been disconnected or the reply has already been sent.
