@@ -19,6 +19,7 @@
 #include <sys/epoll.h>
 #include <unistd.h>
 
+
 #include "Core/Debug.h"
 #include "Core/StringUtil.h"
 #include "Event/File.h"
@@ -413,6 +414,19 @@ ClientSession::ClientSession(Event::Loop& eventLoop,
         int fd = socket(AF_INET, SOCK_DGRAM|SOCK_NONBLOCK, 0);
         if (fd < 0) {
             errorMessage = "Failed to create UDP socket";
+            return;
+        }
+
+        sockaddr_in addr = {0,};
+        addr.sin_family = AF_INET;
+        addr.sin_port = 0;
+        inet_pton(AF_INET, "10.64.101.40", &addr.sin_addr);
+        
+        int r = ::bind(fd, (struct sockaddr*)&addr, sizeof(addr));
+        if (r != 0)
+        {
+            errorMessage = "Failed to bind the UDP socket";
+            close(fd);
             return;
         }
 
