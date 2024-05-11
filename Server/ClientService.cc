@@ -26,6 +26,8 @@
 #include "Server/Globals.h"
 #include "Server/StateMachine.h"
 
+#define NO_SWITCH
+
 namespace LogCabin {
 namespace Server {
 
@@ -151,6 +153,7 @@ ClientService::setConfiguration(RPC::ServerRPC rpc)
 void
 ClientService::stateMachineCommand(RPC::ServerRPC rpc)
 {
+    #ifndef NO_SWITCH
     {
         std::pair<Result, uint64_t> result = globals.raft->getLastCommitIndex();
         if (result.first == Result::SUCCESS)
@@ -159,6 +162,7 @@ ClientService::stateMachineCommand(RPC::ServerRPC rpc)
                 return;
             }
     }
+    #endif
 
     PRELUDE(StateMachineCommand);
     Core::Buffer cmdBuffer;

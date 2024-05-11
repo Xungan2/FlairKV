@@ -26,6 +26,7 @@
 #include "Server/RaftConsensus.h"
 #include "Server/RaftService.h"
 #include "Server/StateMachine.h"
+#include "Core/MyDebug.h"
 
 namespace LogCabin {
 namespace Server {
@@ -103,6 +104,9 @@ Globals::~Globals()
 void
 Globals::init()
 {
+    MyDebug_init(config);
+    MyDebug_write("Globals: Init successfully.");
+
     std::string uuid = config.read("clusterUUID", std::string(""));
     if (!uuid.empty())
         clusterUUID.set(uuid);

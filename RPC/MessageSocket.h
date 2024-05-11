@@ -19,6 +19,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include "Core/Buffer.h"
 #include "Core/Mutex.h"
@@ -99,7 +100,7 @@ class MessageSocket {
          */
         virtual void handleDisconnect() = 0;
 
-        sockaddr udp_addr;
+        sockaddr_in udp_addr;
         socklen_t udp_addr_len;
     };
 

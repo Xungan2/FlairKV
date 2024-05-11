@@ -177,7 +177,6 @@ class OpaqueServer {
         ~SocketWithHandler();
         MessageSocketHandler handler;
         MessageSocket monitor;
-        uint8_t is_udp;
 
       private:
         SocketWithHandler(OpaqueServer* server, int fd, uint8_t is_udp=0);

@@ -90,7 +90,7 @@ OpaqueServer::MessageSocketHandler::handleReceivedMessage(
         if (server == NULL)
             return;
         VERBOSE("Handling RPC");
-        OpaqueServerRPC rpc(self, messageId, std::move(message), is_flair, &udp_addr, &udp_addr_len);
+        OpaqueServerRPC rpc(self, messageId, std::move(message), is_flair, (sockaddr*)&udp_addr, &udp_addr_len);
         server->rpcHandler.handleRPC(std::move(rpc));
     }
 }
@@ -127,8 +127,7 @@ OpaqueServer::SocketWithHandler::SocketWithHandler(
         OpaqueServer* server,
         int fd,
         uint8_t is_udp)
-    : is_udp(is_udp)
-    , handler(server, is_udp)
+    : handler(server, is_udp)
     , monitor(handler, server->eventLoop, fd, server->maxMessageLength, is_udp)
 {
 }
@@ -306,7 +305,7 @@ OpaqueServer::bind_udp(const Address& listenAddress)
         return msg;
     }
 
-    sockets.insert(SocketWithHandler::make(this, fd));
+    sockets.insert(SocketWithHandler::make(this, fd, 1));
     return "";
 }
 

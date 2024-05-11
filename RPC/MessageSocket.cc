@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <iostream>
 #include <cassert>
 #include <errno.h>
 #include <netinet/in.h>
@@ -29,6 +30,7 @@
 #include "Event/Loop.h"
 #include "RPC/MessageSocket.h"
 #include "Protocol/FlairProtocol.h"
+#include "Core/MyDebug.h"
 
 namespace LogCabin {
 
@@ -250,6 +252,8 @@ MessageSocket::sendMessage(MessageId messageId, Core::Buffer contents,
         std::lock_guard<Core::Mutex> lock(outboundQueueMutex);
         kick = outboundQueue.empty();
         outboundQueue.emplace_back(messageId, std::move(contents), udp_addr, udp_addr_len);
+        if (is_udp)
+            MYLOG_WRITE("MessageSocket: push a message into the outbound queue. (UDP)");
     }
     // Make sure the SendSocket is set up to call writable().
     if (kick)
@@ -358,9 +362,11 @@ MessageSocket::read(void* buf, size_t maxBytes)
 void
 MessageSocket::readable_udp()
 {
+    MYLOG_WRITE("MessageSocket: a receive event is thiggered. (UDP)");
     {
         char tmp_buffer[10];
-        ssize_t bytesRead = read_udp(&inbound.header, sizeof(Header), MSG_PEEK, &handler.udp_addr, &handler.udp_addr_len);
+        handler.udp_addr_len = sizeof(sockaddr);
+        ssize_t bytesRead = read_udp(&inbound.header, sizeof(Header), MSG_PEEK, (sockaddr*)&handler.udp_addr, &handler.udp_addr_len);
         if (bytesRead == -1) {
             read_udp(tmp_buffer, 1, 0, NULL, NULL);
             return;
@@ -396,7 +402,7 @@ MessageSocket::readable_udp()
                                 inbound.header.payloadLength,
                                 Core::Buffer::deleteArrayFn<char>);
     }
-
+    MYLOG_WRITE("MessageSocket: parsing the header of the received packet successfully. (UDP)");
     {
         char* tmp_buffer = new char[sizeof(Header) + inbound.header.payloadLength];
         ssize_t bytesRead = read_udp(tmp_buffer, maxMessageLength, 0, NULL, NULL);
@@ -404,16 +410,18 @@ MessageSocket::readable_udp()
             delete(tmp_buffer);
             return;
         }
-        if (bytesRead <= sizeof(Header)) {
+        if (inbound.header.payloadLength + sizeof(Header) != bytesRead) {
             delete(tmp_buffer);
             WARNING("Dropping since message's payload is broken");
-            return;
         }
         memcpy(static_cast<char*>(inbound.message.getData()),
                tmp_buffer + sizeof(Header), bytesRead - sizeof(Header));
         delete(tmp_buffer);
     }
 
+    MYLOG_WRITE("MessageSocket: receiving successfully, messageId: %llu. (UDP)", inbound.header.messageId);
+    MYLOG_WRITE("MessageSocket: ip: %s, port: %u. (UDP)", inet_ntoa(handler.udp_addr.sin_addr), handler.udp_addr.sin_port);
+    
     handler.handleReceivedMessage(inbound.header.messageId,
                                   std::move(inbound.message),
                                   1);
@@ -446,7 +454,7 @@ MessageSocket::writable()
                 return;
             outbound = std::move(outboundQueue.front());
             outboundQueue.pop_front();
-            if (!outboundQueue.empty())
+            if (!is_udp && !outboundQueue.empty())
                 flags |= MSG_MORE;
         }
 
@@ -484,8 +492,15 @@ MessageSocket::writable()
         msg.msg_iov = iov;
         msg.msg_iovlen = IOV_LEN;
 
+        if (is_udp)
+            MYLOG_WRITE("MessageSocket: start to send a message (UDP).");
+
         // Do the actual send
         ssize_t bytesSent = sendmsg(sendSocket.fd, &msg, flags);
+
+        if (is_udp)
+            MYLOG_WRITE("MessageSocket: sending completed (UDP).");
+
         if (bytesSent < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
                 // Wasn't able to send, try again later.
@@ -521,8 +536,10 @@ MessageSocket::writable()
         }
         else
         {
+            MYLOG_WRITE("MessageSocket: sending successfully (UDP).");
             if (bytesSent != (sizeof(Header) +
                             outbound.message.getLength())) {
+                MYLOG_WRITE("MessageSocket: packet broken (UDP).");
                 sendSocketMonitor.setEvents(EPOLLOUT|EPOLLONESHOT);
                 std::lock_guard<Core::Mutex> lockGuard(outboundQueueMutex);
                 outboundQueue.emplace_front(std::move(outbound));

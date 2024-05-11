@@ -4,6 +4,7 @@ src = [
     "Buffer.cc",
     "Checksum.cc",
     "ConditionVariable.cc",
+    "MyDebug.cc",
     "Config.cc",
     "Debug.cc",
     "ProtoBuf.cc",
