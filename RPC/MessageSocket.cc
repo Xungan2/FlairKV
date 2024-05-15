@@ -420,7 +420,7 @@ MessageSocket::readable_udp()
     }
 
     MYLOG_WRITE("MessageSocket: receiving successfully, messageId: %llu. (UDP)", inbound.header.messageId);
-    MYLOG_WRITE("MessageSocket: ip: %s, port: %u. (UDP)", inet_ntoa(handler.udp_addr.sin_addr), handler.udp_addr.sin_port);
+    MYLOG_WRITE("MessageSocket: ip: %s, port: %u. (UDP)", inet_ntoa(handler.udp_addr.sin_addr), be16toh(handler.udp_addr.sin_port));
     
     handler.handleReceivedMessage(inbound.header.messageId,
                                   std::move(inbound.message),

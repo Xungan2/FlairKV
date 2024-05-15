@@ -3,6 +3,8 @@
 
 namespace LogCabin {
 
+#define NO_MYDEBUG
+
 namespace MyDebug {
     std::string log_file;
     std::ofstream fout;

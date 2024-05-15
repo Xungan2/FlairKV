@@ -417,15 +417,24 @@ ClientSession::ClientSession(Event::Loop& eventLoop,
             return;
         }
 
+        int no_checksum = 1;
+        int r = setsockopt(fd, SOL_SOCKET, SO_NO_CHECK, &no_checksum, sizeof(no_checksum));
+        if (r < 0) {
+            errorMessage = Core::StringUtil::format(
+                "Could not close the UDP checksum check: %s", strerror(errno));
+            close(fd);
+            return;
+        }
+
         sockaddr_in addr = {0,};
         addr.sin_family = AF_INET;
         addr.sin_port = 0;
-        inet_pton(AF_INET, "10.64.101.40", &addr.sin_addr);
-        
-        int r = ::bind(fd, (struct sockaddr*)&addr, sizeof(addr));
+        inet_pton(AF_INET, "10.64.100.39", &addr.sin_addr);
+        r = ::bind(fd, (struct sockaddr*)&addr, sizeof(addr));
         if (r != 0)
         {
-            errorMessage = "Failed to bind the UDP socket";
+            errorMessage = Core::StringUtil::format(
+                "Failed to bind the UDP socket: %s", strerror(errno));
             close(fd);
             return;
         }

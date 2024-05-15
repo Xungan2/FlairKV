@@ -285,9 +285,14 @@ OpaqueServer::bind_udp(const Address& listenAddress)
                        &flag, sizeof(flag));
     if (r < 0) {
         PANIC("Could not set SO_REUSEADDR on socket: %s",
-              strerror(errno));
+            strerror(errno));
     }
-
+    int no_checksum = 1;
+    r = setsockopt(fd, SOL_SOCKET, SO_NO_CHECK, &no_checksum, sizeof(no_checksum));
+    if (r < 0) {
+        PANIC("Could not close the UDP checksum check: %s",
+            strerror(errno));
+    }
 
     r = ::bind(fd, listenAddress.getSockAddr(),
                    listenAddress.getSockAddrLen());

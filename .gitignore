@@ -10,3 +10,6 @@
 /smoketest*.conf
 /smoketeststorage
 /storage
+/pidfiles/*
+/logs/*
+/myLogs/*

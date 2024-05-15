@@ -26,7 +26,7 @@
 #include "Server/Globals.h"
 #include "Server/StateMachine.h"
 
-#define NO_SWITCH
+// #define NO_SWITCH
 
 namespace LogCabin {
 namespace Server {
@@ -228,13 +228,21 @@ ClientService::stateMachineQuery(RPC::ServerRPC rpc)
         rpc.flair_hdr.opcode = Protocol::FlairProtocol::OP_READ_REPLY;
         PRELUDE(StateMachineQuery);
         std::pair<Result, uint64_t> result = globals.raft->getLastCommitIndex();
-        rpc.flair_hdr.from_leader = result.first == Result::SUCCESS ? 1:0;
+        uint8_t is_leader = result.first == Result::SUCCESS ? 1:0;
         rpc.flair_hdr.opcode = Protocol::FlairProtocol::OP_READ_REPLY;
         uint64_t logIndex;
-        if (!rpc.flair_hdr.from_leader)
-            logIndex = rpc.flair_hdr.log_idx;
-        else
+        if (rpc.flair_hdr.log_idx == 0xffffffffffffffff) {
+            if (!is_leader) {
+                // TODO: Tell the switch which server is the current leader.
+                // rpc.flair_hdr.opcode = Protocol::FlairProtocol::OP_READ_FAILED;
+            }
+            rpc.flair_hdr.from_leader = 1;
             logIndex = result.second;
+        }
+        else {
+            rpc.flair_hdr.from_leader = 0;
+            logIndex = rpc.flair_hdr.log_idx;
+        }
         globals.stateMachine->wait(logIndex);
         if (!globals.stateMachine->query(request, response))
         {
